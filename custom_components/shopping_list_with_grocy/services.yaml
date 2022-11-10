@@ -1,0 +1,51 @@
+# Services.yaml for shopping_list_with_grocy integration
+
+refresh_products:
+  description: Refresh products from Grocy.
+
+add_product:
+  description: Add product in your Grocy shopping list.
+  fields:
+    product_id:
+      name: Product ID
+      description: Represents your product id you'd like to add.
+      example: "sensor.shopping_list_with_grocy_<your product>"
+      required: true
+      selector:
+        text:
+    note:
+      name: Note
+      description: Note to add with your product.
+      example: "This is the note of the shopping list item..."
+      required: false
+      selector:
+        text:
+
+remove_product:
+  description: Remove product from your Grocy shopping list.
+  fields:
+    product_id:
+      name: Product ID
+      description: Represents your product id you'd like to remove.
+      example: "sensor.shopping_list_with_grocy_<your product>"
+      required: true
+      selector:
+        text:
+
+update_note:
+  description: Update note for a product in your Grocy shopping list.
+  fields:
+    product_id:
+      name: Product ID
+      description: Represents your product id you'd like to modify.
+      example: "sensor.shopping_list_with_grocy_<your product>"
+      required: true
+      selector:
+        text:
+    note:
+      name: Note
+      description: Note to update for your product.
+      example: "This is the note of the shopping list item..."
+      required: true
+      selector:
+        text:

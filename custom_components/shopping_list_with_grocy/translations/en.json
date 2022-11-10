@@ -1,0 +1,20 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "data": {
+                    "api_url": "Grocy - URL",
+                    "api_key": "Grocy - API Key",
+                    "mqtt_server": "MQTT - IP address",
+                    "mqtt_port": "MQTT - Port",
+                    "mqtt_username": "MQTT - Username",
+                    "mqtt_password": "MQTT - Password",
+                    "create_global_sensor": "Add all products in a sensor attribute?"
+                }
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only a single instance is allowed."
+        }
+    }
+}
