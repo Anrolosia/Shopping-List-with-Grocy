@@ -1,4 +1,4 @@
-name:  Shopping List with Grocy Continuous Deployment
+name: Trakt Integration Continuous Deployment
 
 on:
   push:
