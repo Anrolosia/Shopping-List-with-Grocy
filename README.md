@@ -329,6 +329,9 @@ cards:
                 entity: binary_sensor.updating_shopping_list_with_grocy
                 class: col
                 show_name: false
+                lock:
+                  enabled: '[[[ return entity.state === "on"; ]]]'
+                  unlock: hold
                 tap_action:
                   action: call-service
                   service: shopping_list_with_grocy.refresh_products
