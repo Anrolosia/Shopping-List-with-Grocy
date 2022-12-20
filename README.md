@@ -2,17 +2,20 @@
 <h1 align="center">Shopping List with Grocy Integration</h1>
 
 <p align="center">
+  <a href="https://github.com/Anrolosia/Shopping-List-with-Grocy">
+    <img src="https://img.shields.io/github/v/release/Anrolosia/Shopping-List-with-Grocy?style=for-the-badge" alt="Release" />
+  </a>
+  <a href="https://github.com/Anrolosia/Shopping-List-with-Grocy">
+    <img src="https://img.shields.io/github/last-commit/Anrolosia/Shopping-List-with-Grocy?style=for-the-badge" alt="Last Commit" />
+  </a>
   <a href="https://github.com/custom-components/hacs">
-    <img src="https://img.shields.io/badge/HACS-Default-orange.svg" alt="HACS" />
+    <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS" />
   </a>
-  <a href="https://github.com/Anrolosia/Shopping-List-with-Grocy">
-    <img src="https://img.shields.io/github/v/release/Anrolosia/Shopping-List-with-Grocy" alt="Release" />
-  </a>
-  <a href="https://github.com/Anrolosia/Shopping-List-with-Grocy">
-    <img src="https://img.shields.io/github/last-commit/Anrolosia/Shopping-List-with-Grocy" alt="Last Commit" />
+  <a href="https://github.com/Anrolosia">
+    <img src="https://img.shields.io/badge/maintainer-%40Anrolosia-blue.svg?style=for-the-badge" alt="HACS" />
   </a>
   <a href="https://www.buymeacoffee.com/anrolosia">
-    <img src="https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow" alt="Donate Coffee" />
+    <img src="https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow?style=for-the-badge" alt="Donate Coffee" />
   </a>
 </p>
 
@@ -47,7 +50,11 @@ Installation is a multi-step process. Follow each of the following steps.
 
 ### 1. Add HACS Integration
 
-This integration is available in [HACS](https://hacs.xyz/) (Home Assistant Community Store). Install it as follows:
+This integration is available in [HACS](https://hacs.xyz/) (Home Assistant Community Store). You can click on
+
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=anrolosia&repository=shopping-list-with-grocy&category=integration" target="_blank"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store." /></a>
+
+or install it manually as follows:
 
 - In Home Assistant, go to HACS > Integrations
 - Press the **Explore & Add Repositories** button
@@ -63,6 +70,12 @@ You have to provide an `url` and an `API key` to use this integration.
 - Copy your Grocy main URL (``https://<url-of-your-grocy-installation>/`` and your newly generated API key
 
 ### 3. Add Home Assistant Integration
+
+Clik on
+
+<a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=shopping_list_with_grocy" target="_blank"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration." /></a>
+
+or install it manually as follows:
 
 - In Home Assistant, go to Configuration > Integrations
 - Press the **Add Integration** button
@@ -88,6 +101,13 @@ If you checked the option during the configuration of the module to include more
 ##### Updating sensor
 
 This sensor (``binary_sensor.updating_shopping_list_with_grocy``) show current status of list update.
+
+#### Available Switch
+
+##### Pause update
+
+This switch (``switch.pause_update_shopping_list_with_grocy``) will prevent any updates from your Grocy instance to your Home Assistant.
+It could be useful if you want to update several products at once or run a long script.
 
 #### Available Services
 
