@@ -339,11 +339,11 @@ class ShoppingListWithGrocyApi:
                 "homeassistant/binary_sensor/" + object_id + "/config",
                 json.dumps(prod_dict_config),
             )
+            self.update_object_in_mqtt(
+                availability_topic,
+                "online",
+            )
 
-        self.update_object_in_mqtt(
-            availability_topic,
-            "online",
-        )
         self.update_object_in_mqtt(
             state_topic,
             refreshing,
@@ -351,17 +351,68 @@ class ShoppingListWithGrocyApi:
         self.client.loop_stop()
         self.client.disconnect()
 
+    async def is_update_paused(self):
+        object_id = "pause_update_shopping_list_with_grocy"
+        topic = "shopping-list-with-grocy/switch/pause_update"
+        state_topic = topic + "/state"
+        availability_topic = topic + "/availability"
+        entity = self.get_entity_in_hass("switch." + object_id)
+
+        if entity is None:
+            self.client.connect(self.mqtt_server, self.mqtt_port)
+            self.client.loop_start()
+            prod_dict_config = {
+                "name": "ShoppingListWithGrocy Pause update",
+                "state_topic": state_topic,
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "state_on": "ON",
+                "state_off": "OFF",
+                "availability": [
+                    {
+                        "topic": availability_topic,
+                        "payload_available": "online",
+                        "payload_not_available": "offline",
+                    }
+                ],
+                "command_topic": state_topic,
+                "optimistic": False,
+                "entity_category": "config",
+                "icon": "mdi:pause-octagon",
+                "unique_id": object_id,
+                "object_id": object_id,
+            }
+            self.update_object_in_mqtt(
+                "homeassistant/switch/" + object_id + "/config",
+                json.dumps(prod_dict_config),
+            )
+            self.update_object_in_mqtt(
+                availability_topic,
+                "online",
+            )
+            self.update_object_in_mqtt(
+                state_topic,
+                "OFF",
+            )
+            self.client.loop_stop()
+            self.client.disconnect()
+            return False
+
+        return entity.state == "on"
+
     async def retrieve_data(self, force=False):
         last_db_changed_time = await self.fetch_last_db_changed_time()
+        is_update_paused = await self.is_update_paused()
         update_data = False
-        if self.last_db_changed_time is None or (
-            last_db_changed_time > self.last_db_changed_time
+        if not is_update_paused and (
+            self.last_db_changed_time is None
+            or (last_db_changed_time > self.last_db_changed_time)
         ):
             update_data = True
             self.last_db_changed_time = last_db_changed_time
 
         async with timeout(60):
-            if force or update_data:
+            if force or (update_data and not is_update_paused):
                 await self.update_refreshing_status("ON")
                 titles = [
                     "products",
