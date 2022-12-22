@@ -42,7 +42,12 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     config = entry.data
-    api = ShoppingListWithGrocyApi(async_get_clientsession(hass), hass, config)
+    verify_ssl = config.get("verify_ssl")
+    if verify_ssl is None:
+        verify_ssl = True
+    api = ShoppingListWithGrocyApi(
+        async_get_clientsession(hass, verify_ssl=verify_ssl), hass, config
+    )
     session = async_get_clientsession(hass)
     coordinator = ShoppingListWithGrocyCoordinator(hass, session, entry, api)
 
@@ -65,6 +70,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         )
 
     async_setup_services(hass)
+
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrate old entry."""
+
+    #
+    # To v2
+    #
+
+    if config_entry.version == 1:
+
+        log.debug("Migrating from version %s", config_entry.version)
+
+        v2_options: ConfigEntry = {**config_entry.options}
+
+        v2_options["verify_ssl"] = True
+
+        config_entry.version = 2
+
+        hass.config_entries.async_update_entry(
+            config_entry, data={**config_entry.data}, options=v2_options
+        )
+
+        log.info("Migration to version %s successful", config_entry.version)
 
     return True
 

@@ -4,6 +4,7 @@
             "user": {
                 "data": {
                     "api_url": "Grocy - URL",
+                    "verify_ssl": "Verify SSL certificate",
                     "api_key": "Grocy - API Key",
                     "mqtt_server": "MQTT - IP address",
                     "mqtt_port": "MQTT - Port",

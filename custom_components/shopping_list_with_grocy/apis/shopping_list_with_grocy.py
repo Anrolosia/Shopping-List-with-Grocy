@@ -24,6 +24,9 @@ class ShoppingListWithGrocyApi:
         self.config = config
         self.web_session = websession
         self.api_url = config.get("api_url")
+        self.verify_ssl = config.get("verify_ssl")
+        if self.verify_ssl is None:
+            self.verify_ssl = True
         self.api_key = config.get("api_key")
         self.mqtt_server = config.get("mqtt_server", "127.0.0.1")
         self.mqtt_port = config.get("mqtt_port", 1883)
@@ -100,6 +103,7 @@ class ShoppingListWithGrocyApi:
             **kwargs,
             headers=headers,
             data=payload,
+            ssl=self.verify_ssl,
         )
 
     async def fetch_products(self, path: str):

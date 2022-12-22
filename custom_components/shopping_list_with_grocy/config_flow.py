@@ -40,6 +40,7 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required("api_url"): cv.string,
+                    vol.Required("verify_ssl", default=True): cv.boolean,
                     vol.Required("api_key"): cv.string,
                     vol.Required("mqtt_server", default="127.0.0.1"): cv.string,
                     vol.Required("mqtt_port", default=1883): vol.All(
