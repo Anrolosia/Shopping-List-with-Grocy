@@ -84,6 +84,9 @@ or install it manually as follows:
 
 Depending on the number of products you have in your Grocy instance, the sensors may take a while to be created and populated.
 
+:warning: If you want to use Grocy's add-on from Home assistant, please configure a port/web interface in grocy addon config at the bottom, f.e. 9192
+then use your HA address like this: https://192.168.1.1:9192 and uncheck the Verify SSL certificate checkbox
+
 #### Available Sensors
 
 This integration will create as much sensors as you have products configured in your Grocy instance, but will also create 3 other sensors:
