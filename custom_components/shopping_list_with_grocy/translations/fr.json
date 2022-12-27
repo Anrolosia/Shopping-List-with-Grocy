@@ -15,7 +15,7 @@
             }
         },
         "abort": {
-          "single_instance_allowed": "Une seule instance est autorisée."
+            "single_instance_allowed": "Une seule instance est autorisée."
         }
     }
 }

@@ -10,7 +10,7 @@
                     "mqtt_port": "MQTT - Port",
                     "mqtt_username": "MQTT - Username",
                     "mqtt_password": "MQTT - Password",
-                    "create_global_sensor": "Add all products in a sensor attribute?"
+                    "adding_products_in_sensor": "Add all products in a sensor attribute?"
                 }
             }
         },
