@@ -27,7 +27,9 @@ SCAN_INTERVAL = timedelta(seconds=120)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform."""
-    config = config_entry.data
+    config = config_entry.options
+    if config is None or len(config) == 0:
+        config = config_entry.data
     coordinator = hass.data[DOMAIN]["instances"]["coordinator"]
 
     sensors = []

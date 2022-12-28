@@ -16,6 +16,28 @@
         },
         "abort": {
             "single_instance_allowed": "Une seule instance est autorisée."
+        },
+        "error": {
+            "invalid_api_url": "L'URL de Grocy n'est pas valide, veuillez utiliser une URL valide (http:// ou https:// avec un nom de domaine ou une adresse IP)"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "api_url": "Grocy - URL",
+                    "verify_ssl": "Vérifier le certificat SSL",
+                    "api_key": "Grocy - Clé API",
+                    "mqtt_server": "MQTT - Adresse IP",
+                    "mqtt_port": "MQTT - Port",
+                    "mqtt_username": "MQTT - Nom d'utilisateur",
+                    "mqtt_password": "MQTT - Mot de passe",
+                    "adding_products_in_sensor": "Ajouter tous les produits dans les attributs du capteur ?"
+                }
+            }
+        },
+        "error": {
+            "invalid_api_url": "L'URL de Grocy n'est pas valide, veuillez utiliser une URL valide (http:// ou https:// avec un nom de domaine ou une adresse IP)"
         }
     }
 }

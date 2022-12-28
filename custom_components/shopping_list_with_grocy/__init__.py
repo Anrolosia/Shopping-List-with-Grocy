@@ -41,7 +41,9 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    config = entry.data
+    config = entry.options
+    if config is None or len(config) == 0:
+        config = entry.data
     verify_ssl = config.get("verify_ssl")
     if verify_ssl is None:
         verify_ssl = True
