@@ -73,10 +73,10 @@ class ShoppingListWithGrocyApi:
         return self.strip_accents(self.replace_umlauts(s))
 
     def encode_base64(self, message):
-        message_bytes = message.encode("ascii")
+        message_bytes = message.encode()
         base64_bytes = base64.b64encode(message_bytes)
 
-        return base64_bytes.decode("ascii")
+        return base64_bytes.decode()
 
     def update_object_in_mqtt(self, topic, subject):
         self.client.publish(
