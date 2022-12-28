@@ -85,7 +85,11 @@ or install it manually as follows:
 Depending on the number of products you have in your Grocy instance, the sensors may take a while to be created and populated.
 
 :warning: If you want to use Grocy's add-on from Home assistant, please configure a port/web interface in grocy addon config at the bottom, f.e. 9192
-then use your HA address like this: https://192.168.1.1:9192 and uncheck the Verify SSL certificate checkbox
+then use your HA address like this: https://192.168.1.1:9192 and uncheck the Verify SSL certificate checkbox. You SHOULD use https if your Grocy's module is configured to use SSL (even if you don't have any certificate). Use http:// if it's not checked :warning:
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Anrolosia/Shopping-List-with-Grocy/main/images/grocy_addon_ssl.png" alt="Grocy add-on SSL" />
+</p>
 
 #### Available Sensors
 
