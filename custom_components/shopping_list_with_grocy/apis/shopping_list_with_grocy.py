@@ -50,13 +50,27 @@ class ShoppingListWithGrocyApi:
             if unicodedata.category(c) != "Mn"
         )
 
+    def replace_umlauts(self, s):
+        """replace special German umlauts (vowel mutations) from text.
+        ä -> ae...
+        ü -> ue
+        """
+        vowel_char_map = {
+            ord("ä"): "ae",
+            ord("ü"): "ue",
+            ord("ö"): "oe",
+            ord("ß"): "ss",
+        }
+
+        return s.translate(vowel_char_map)
+
     def slugify(self, s):
         s = s.lower().strip()
         s = re.sub(r"[^\w\s-]", "", s)
         s = re.sub(r"[\s_-]+", "_", s)
         s = re.sub(r"^-+|-+$", "", s)
 
-        return self.strip_accents(s)
+        return self.strip_accents(self.replace_umlauts(s))
 
     def encode_base64(self, message):
         message_bytes = message.encode("ascii")
