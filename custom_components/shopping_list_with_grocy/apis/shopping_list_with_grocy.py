@@ -152,10 +152,12 @@ class ShoppingListWithGrocyApi:
             note = ""
             picture = ""
             location = ""
+            group = ""
             product_name = product["name"]
             product_id = product["id"]
             product_picture = product["picture_file_name"]
             product_location = product["location_id"]
+            product_group = product["product_group_id"]
             slug = self.slugify(product_name)
             object_id = "shopping_list_with_grocy_" + slug
             topic = self.state_topic + object_id + "/state"
@@ -188,6 +190,11 @@ class ShoppingListWithGrocyApi:
                     if product_location == locations["id"]:
                         location = locations["name"]
 
+            if product_group is not None and product_group != "null":
+                for groups in data["product_groups"]:
+                    if product_group == groups["id"]:
+                        group = groups["name"]
+
             entity = self.get_entity_in_hass("sensor." + object_id)
 
             if entity is None:
@@ -219,6 +226,7 @@ class ShoppingListWithGrocyApi:
                     "topic": topic,
                     "note": note,
                     "location": location,
+                    "group": group,
                 }
                 self.update_object_in_mqtt(
                     topic,
@@ -422,6 +430,7 @@ class ShoppingListWithGrocyApi:
                     "products",
                     "shopping_list",
                     "locations",
+                    "product_groups",
                 ]
                 data = await gather(*[self.fetch_list(path) for path in titles])
                 final_data = {title: products for title, products in zip(titles, data)}
