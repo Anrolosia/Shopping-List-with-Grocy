@@ -1,5 +1,5 @@
-"""The Trakt integration."""
 import logging
+import uuid
 from datetime import timedelta
 
 from async_timeout import timeout
@@ -85,19 +85,24 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     if config_entry.version == 1:
 
-        log.debug("Migrating from version %s", config_entry.version)
+        LOGGER.debug("Migrating from version %s", config_entry.version)
+
+        unique_id = str(uuid.uuid4())
 
         v2_options: ConfigEntry = {**config_entry.options}
+        if v2_options is not None and len(v2_options) < 0:
+            v2_options["unique_id"] = unique_id
 
-        v2_options["verify_ssl"] = True
+        v2_data: ConfigEntry = {**config_entry.data}
+        v2_data["unique_id"] = unique_id
 
         config_entry.version = 2
 
         hass.config_entries.async_update_entry(
-            config_entry, data={**config_entry.data}, options=v2_options
+            config_entry, data=v2_data, options=v2_options
         )
 
-        log.info("Migration to version %s successful", config_entry.version)
+        LOGGER.info("Migration to version %s successful", config_entry.version)
 
     return True
 
@@ -136,50 +141,10 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass, LOGGER, name=self.name, update_interval=timedelta(seconds=120)
         )
-        # super().__init__(hass, LOGGER, name=self.name, update_method=api.retrieve_data)
-
-        # wait for 10 seconds after HA startup to allow entities to be initialized
-        @callback
-        def handle_startup(_event):
-            hass.async_create_task(self.async_init_shopping_list_with_grocy_sensor())
-
-            @callback
-            def async_timer_finished(_now):
-                self.state = const.STATE_READY
-                async_dispatcher_send(self.hass, const.EVENT_STARTED)
-
-            async_call_later(hass, 10, async_timer_finished)
-
-        if hass.state == CoreState.running:
-            handle_startup(None)
-        else:
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_startup)
 
     async def _async_update_data(self):
         async with timeout(60):
             return await self.api.retrieve_data()
-
-    async def async_init_shopping_list_with_grocy_sensor(self):
-        """watch for changes in the shopping list with grocy sensor"""
-
-        shopping_list_with_grocy_entity = self.hass.states.get(
-            "sensor.products_shopping_list_with_grocy"
-        )
-        if not shopping_list_with_grocy_entity:
-            return None
-
-        @callback
-        async def async_shopping_list_with_grocy_state_updated(
-            entity, old_state, new_state
-        ):
-            """the shopping list with grocy sensor has been updated"""
-            async_dispatcher_send(self.hass, "shopping_list_with_grocy_sensor_updated")
-
-        self._shopping_list_with_grocy_tracker = async_track_state_change(
-            self.hass,
-            "sensor.products_shopping_list_with_grocy",
-            async_shopping_list_with_grocy_state_updated,
-        )
 
     async def request_update(self):
         async with timeout(60):

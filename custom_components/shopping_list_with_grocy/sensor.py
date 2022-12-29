@@ -75,7 +75,10 @@ class ShoppingListSensor(Entity):
     ):
         """Initialize the sensor."""
         self.hass = hass
-        self.config = config_entry.data
+        if config_entry.options is None or len(config_entry.options) == 0:
+            self.config = config_entry.data
+        else:
+            self.config = config_entry.options
         self.coordinator = coordinator
         self.source = source
         self.prefix = prefix

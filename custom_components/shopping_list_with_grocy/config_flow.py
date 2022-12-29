@@ -1,6 +1,6 @@
-"""Config flow for Trakt."""
 import logging
 import re
+import uuid
 from typing import Any, Dict, Optional
 
 import homeassistant.helpers.config_validation as cv
@@ -21,20 +21,21 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             self.options = dict(config_entry.data)
         else:
             self.options = dict(config_entry.options)
+        self._data = {}
+        self._data["unique_id"] = self.options.get("unique_id")
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        errors: dict = {}
+        self._errors = {}
 
         if user_input is not None:
             if not is_valid_url(user_input["api_url"]):
-                errors["base"] = "invalid_api_url"
-            if errors == {}:
-                self.user_input = user_input
-                self.options = user_input
+                self._errors["base"] = "invalid_api_url"
+            if self._errors == {}:
+                self._data.update(user_input)
                 return self.async_create_entry(
-                    title="ShoppingListWithGrocy", data=self.options
+                    title="ShoppingListWithGrocy", data=self._data
                 )
 
         return self.async_show_form(
@@ -69,22 +70,26 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     ): cv.boolean,
                 }
             ),
-            errors=errors,
+            errors=self._errors,
         )
 
 
+@config_entries.HANDLERS.register(DOMAIN)
 class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow to handle Trakt OAuth2 authentication."""
 
-    VERSION = 1
+    VERSION = 2
     DOMAIN = DOMAIN
     CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
+
+    def __init__(self):
+        self._errors = {}
+        self._data = {}
+        self._data["unique_id"] = str(uuid.uuid4())
 
     @staticmethod
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> ShoppingListWithGrocyOptionsConfigFlow:
-        """Tell Home Assistant that this integration supports configuration options."""
+    ):
         return ShoppingListWithGrocyOptionsConfigFlow(config_entry)
 
     @property
@@ -94,7 +99,7 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle a flow initialized by the user."""
-        errors: dict = {}
+        self._errors = {}
 
         # Only a single instance of the integration is allowed:
         if self._async_current_entries():
@@ -102,12 +107,11 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             if not is_valid_url(user_input["api_url"]):
-                errors["base"] = "invalid_api_url"
-            if errors == {}:
-                self.user_input = user_input
-                self.config = user_input
+                self._errors["base"] = "invalid_api_url"
+            if self._errors == {}:
+                self._data.update(user_input)
                 return self.async_create_entry(
-                    title="ShoppingListWithGrocy", data=self.config
+                    title="ShoppingListWithGrocy", data=self._data
                 )
 
         return self.async_show_form(
@@ -128,18 +132,7 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): cv.boolean,
                 }
             ),
-            errors=errors,
-        )
-
-    async def async_oauth_create_entry(self, data: dict) -> dict:
-        """
-        Create an entry for the flow.
-
-        Ok to override if you want to fetch extra info or even add another step.
-        """
-        augmented_data = {**data, **self.user_input}
-        return self.async_create_entry(
-            title="ShoppingListWithGrocy", data=augmented_data
+            errors=self._errors,
         )
 
 
