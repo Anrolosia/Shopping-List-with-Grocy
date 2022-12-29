@@ -31,7 +31,7 @@ LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = configuration_schema
 PLATFORMS = ["sensor"]
 
-MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
+MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=30)
 
 
 async def async_setup(hass: HomeAssistant, config: dict):
@@ -139,7 +139,7 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         self._shopping_list_with_grocy_tracker = None
 
         super().__init__(
-            hass, LOGGER, name=self.name, update_interval=timedelta(seconds=120)
+            hass, LOGGER, name=self.name, update_interval=timedelta(seconds=30)
         )
 
     async def _async_update_data(self):

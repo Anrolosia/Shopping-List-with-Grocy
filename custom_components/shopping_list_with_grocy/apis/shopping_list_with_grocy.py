@@ -33,6 +33,7 @@ class ShoppingListWithGrocyApi:
         self.mqtt_username = config.get("mqtt_username", None)
         self.mqtt_password = config.get("mqtt_password", None)
         self.ha_products = []
+        self.final_data = []
         self.state_topic = "homeassistant/sensor/"
         self.current_time = datetime.now(timezone.utc)
         self.client = mqtt.Client("ha-client")
@@ -447,7 +448,11 @@ class ShoppingListWithGrocyApi:
                     "product_groups",
                 ]
                 data = await gather(*[self.fetch_list(path) for path in titles])
-                final_data = {title: products for title, products in zip(titles, data)}
-                await self.parse_products(final_data)
+                self.final_data = {
+                    title: products for title, products in zip(titles, data)
+                }
+                await self.parse_products(self.final_data)
                 await self.update_refreshing_status("OFF")
-                return final_data
+                return self.final_data
+            else:
+                return self.final_data
