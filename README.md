@@ -372,8 +372,7 @@ cards:
             filter:
               include:
                 - entity_id: sensor.shopping_list_with_grocy_.*
-                  attributes:
-                    qty_in_shopping_list: '>=1'
+                  state: '>0'
                   not:
                     attributes:
                       note: out_of_stock
@@ -443,8 +442,8 @@ cards:
             filter:
               include:
                 - entity_id: sensor.shopping_list_with_grocy_.*
+                  state: '>0'
                   attributes:
-                    qty_in_shopping_list: '>=1'
                     note: out_of_stock
                   options:
                     type: tile
