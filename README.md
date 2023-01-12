@@ -8,7 +8,7 @@
   <a href="https://github.com/Anrolosia/Shopping-List-with-Grocy">
     <img src="https://img.shields.io/github/last-commit/Anrolosia/Shopping-List-with-Grocy?style=for-the-badge" alt="Last Commit" />
   </a>
-  <a href="https://github.com/custom-components/hacs">
+  <a href="https://github.com/hacs/integration">
     <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS" />
   </a>
   <a href="https://github.com/Anrolosia">
