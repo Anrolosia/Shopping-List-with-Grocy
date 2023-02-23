@@ -84,7 +84,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     #
 
     if config_entry.version == 1:
-
         LOGGER.debug("Migrating from version %s", config_entry.version)
 
         unique_id = str(uuid.uuid4())

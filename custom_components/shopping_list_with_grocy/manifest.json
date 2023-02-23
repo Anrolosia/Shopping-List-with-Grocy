@@ -1,12 +1,10 @@
 {
   "domain": "shopping_list_with_grocy",
   "name": "Shopping List with Grocy",
+  "codeowners": ["@Anrolosia"],
   "config_flow": true,
   "documentation": "https://github.com/Anrolosia/Shopping-List-with-Grocy",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Anrolosia/Shopping-List-with-Grocy/issues",
-  "codeowners": [
-    "@Anrolosia"
-  ],
-  "version": "0.0.1",
-  "iot_class": "cloud_polling"
+  "version": "0.0.1"
 }
