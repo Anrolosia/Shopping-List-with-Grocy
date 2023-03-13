@@ -126,7 +126,11 @@ class ShoppingListWithGrocyApi:
     async def fetch_products(self, path: str, offset: int):
         return await self.request(
             "get",
-            f"api/objects/{path}?limit=" + str(self.pagination_limit) + "&offset=" + str(offset) + ("&order=name%3Aasc" if path == "products" else ""),
+            f"api/objects/{path}?limit="
+            + str(self.pagination_limit)
+            + "&offset="
+            + str(offset)
+            + ("&order=name%3Aasc" if path == "products" else ""),
             "application/json",
         )
 
@@ -154,7 +158,9 @@ class ShoppingListWithGrocyApi:
         new_results = True
         pages[path] = 0
         while new_results:
-            response = await self.fetch_products(path, self.pagination_limit * pages[path])
+            response = await self.fetch_products(
+                path, self.pagination_limit * pages[path]
+            )
             new_results = await response.json()
             data.extend(new_results)
             pages[path] += 1
@@ -189,7 +195,11 @@ class ShoppingListWithGrocyApi:
             if entity in self.ha_products:
                 self.ha_products.remove(entity)
 
-            if self.fetch_images and product_picture is not None and product_picture != "null":
+            if (
+                self.fetch_images
+                and product_picture is not None
+                and product_picture != "null"
+            ):
                 picture_response = await self.fetch_image(
                     self.encode_base64(product_picture)
                 )
