@@ -105,6 +105,30 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     return True
 
+    #
+    # To v3
+    #
+
+    if config_entry.version == 2:
+        LOGGER.debug("Migrating from version %s", config_entry.version)
+
+        v2_options: ConfigEntry = {**config_entry.options}
+        if v2_options is not None and len(v2_options) < 0:
+            v2_options["adding_images"] = True
+
+        v2_data: ConfigEntry = {**config_entry.data}
+        v2_data["adding_images"] = True
+
+        config_entry.version = 3
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=v2_data, options=v2_options
+        )
+
+        LOGGER.info("Migration to version %s successful", config_entry.version)
+
+    return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""

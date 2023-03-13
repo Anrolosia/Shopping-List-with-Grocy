@@ -32,6 +32,7 @@ class ShoppingListWithGrocyApi:
         self.mqtt_port = config.get("mqtt_port", 1883)
         self.mqtt_username = config.get("mqtt_username", None)
         self.mqtt_password = config.get("mqtt_password", None)
+        self.fetch_images = config.get("adding_images", True)
         self.ha_products = []
         self.final_data = []
         self.state_topic = "homeassistant/sensor/"
@@ -40,6 +41,7 @@ class ShoppingListWithGrocyApi:
         if self.mqtt_username is not None and self.mqtt_password is not None:
             self.client.username_pw_set(self.mqtt_username, self.mqtt_password)
         self.last_db_changed_time = None
+        self.pagination_limit = 40
 
     def get_entity_in_hass(self, entity_id):
         return self.hass.states.get(entity_id)
@@ -121,17 +123,17 @@ class ShoppingListWithGrocyApi:
             ssl=self.verify_ssl,
         )
 
-    async def fetch_products(self, path: str):
+    async def fetch_products(self, path: str, offset: int):
         return await self.request(
             "get",
-            f"api/objects/{path}" + ("?order=name%3Aasc" if path == "products" else ""),
+            f"api/objects/{path}?limit=" + str(self.pagination_limit) + "&offset=" + str(offset) + ("&order=name%3Aasc" if path == "products" else ""),
             "application/json",
         )
 
     async def fetch_image(self, image_name: str):
         return await self.request(
             "get",
-            f"api/files/productpictures/{image_name}?force_serve_as=picture&best_fit_width=180",
+            f"api/files/productpictures/{image_name}?force_serve_as=picture&best_fit_width=100",
             "application/octet-stream",
         )
 
@@ -146,9 +148,16 @@ class ShoppingListWithGrocyApi:
         return datetime.strptime(last_changed["changed_time"], "%Y-%m-%d %H:%M:%S")
 
     async def fetch_list(self, path: str):
-        data = {}
-        response = await self.fetch_products(path)
-        data = await response.json()
+        pages = {}
+        data = []
+        offset = 0
+        new_results = True
+        pages[path] = 0
+        while new_results:
+            response = await self.fetch_products(path, self.pagination_limit * pages[path])
+            new_results = await response.json()
+            data.extend(new_results)
+            pages[path] += 1
 
         return data
 
@@ -180,7 +189,7 @@ class ShoppingListWithGrocyApi:
             if entity in self.ha_products:
                 self.ha_products.remove(entity)
 
-            if product_picture is not None and product_picture != "null":
+            if self.fetch_images and product_picture is not None and product_picture != "null":
                 picture_response = await self.fetch_image(
                     self.encode_base64(product_picture)
                 )

@@ -10,6 +10,7 @@
                     "mqtt_port": "MQTT - Port",
                     "mqtt_username": "MQTT - Nom d'utilisateur",
                     "mqtt_password": "MQTT - Mot de passe",
+                    "adding_images": "Récupérer les images des produits? (Cela peut ralentir l'intégration)",
                     "adding_products_in_sensor": "Ajouter tous les produits dans les attributs du capteur ?"
                 }
             }
@@ -32,6 +33,7 @@
                     "mqtt_port": "MQTT - Port",
                     "mqtt_username": "MQTT - Nom d'utilisateur",
                     "mqtt_password": "MQTT - Mot de passe",
+                    "adding_images": "Récupérer les images des produits? (Cela peut ralentir l'intégration)",
                     "adding_products_in_sensor": "Ajouter tous les produits dans les attributs du capteur ?"
                 }
             }
