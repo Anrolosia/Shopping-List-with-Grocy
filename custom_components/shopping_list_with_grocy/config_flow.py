@@ -66,8 +66,8 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     ): cv.string,
                     vol.Optional(
                         "adding_images",
-                        default=self.options.get("adding_images", True),
-                    ): cv.boolean,
+                        default=self.options.get("adding_images", "0")
+                    ): vol.All(cv.string, vol.In(["0", "100", "200", "400"])),
                     vol.Optional(
                         "adding_products_in_sensor",
                         default=self.options.get("adding_products_in_sensor", False),
@@ -130,7 +130,8 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required("mqtt_username"): cv.string,
                     vol.Required("mqtt_password"): cv.string,
-                    vol.Optional("adding_images", default=True): cv.boolean,
+                    vol.Optional("adding_images", default="0"):
+                        vol.All(cv.string, vol.In(["0", "100", "200", "400"])),
                     vol.Optional(
                         "adding_products_in_sensor", default=False
                     ): cv.boolean,
