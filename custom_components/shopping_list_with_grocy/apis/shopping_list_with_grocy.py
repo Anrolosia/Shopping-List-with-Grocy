@@ -68,6 +68,10 @@ class ShoppingListWithGrocyApi:
         return s.translate(vowel_char_map)
 
     def slugify(self, s):
+        if s and s[-2] == '  ':
+            s = s[:-2] + '_3'
+        if s and s[-1] == ' ':
+            s = s[:-1] + '_2'
         s = s.lower().strip()
         s = re.sub(r"[^\w\s-]", "", s)
         s = re.sub(r"[\s_-]+", "_", s)
