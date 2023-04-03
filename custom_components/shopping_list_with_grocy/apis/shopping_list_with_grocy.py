@@ -189,7 +189,7 @@ class ShoppingListWithGrocyApi:
             product_location = product["location_id"]
             product_group = product["product_group_id"]
             slug = self.slugify(product_name)
-            object_id = "shopping_list_with_grocy_" + slug
+            object_id = "shopping_list_with_grocy_" + slug + "_" + str(product_id)
             topic = self.state_topic + object_id + "/state"
             entity = "sensor." + object_id
             if entity in self.ha_products:
@@ -273,7 +273,7 @@ class ShoppingListWithGrocyApi:
                     product = product[:-2]
 
                 entity_id = product.replace("sensor.", "")
-                LOGGER.error("product %s not found on Grocy, deleting it...", entity_id)
+                LOGGER.debug("product %s not found on Grocy, deleting it...", entity_id)
                 topic = self.state_topic + entity_id + "/state"
                 self.update_object_in_mqtt(
                     topic + "/config",
