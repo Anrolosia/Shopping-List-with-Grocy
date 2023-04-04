@@ -32,7 +32,7 @@ class ShoppingListWithGrocyApi:
         self.mqtt_port = config.get("mqtt_port", 1883)
         self.mqtt_username = config.get("mqtt_username", None)
         self.mqtt_password = config.get("mqtt_password", None)
-        self.fetch_images = config.get("adding_images", True)
+        self.fetch_images = config.get("image_download_size", True)
         self.ha_products = []
         self.final_data = []
         self.state_topic = "homeassistant/sensor/"
