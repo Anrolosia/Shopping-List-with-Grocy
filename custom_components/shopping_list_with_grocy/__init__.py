@@ -134,9 +134,9 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     #
 
     if config_entry.version == 3:
-        v2_options = dict(config_entry.options)
-        v2_data = dict(config_entry.data)
-        if v2_options('adding_images', FALSE) is TRUE:
+        v2_options: ConfigEntry = {**config_entry.options}
+        v2_data: ConfigEntry = {**config_entry.data}
+        if v2_options('adding_images', FALSE):
             v2_options['image_download_size'] = 100
             v2_data['image_download_size'] = 100
         else:
@@ -144,6 +144,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             v2_data['image_download_size'] = 0
 
         v2_options.pop('adding_images', NONE)
+        v2_data.pop('adding_images', NONE)
 
         config_entry.version = 4
 
