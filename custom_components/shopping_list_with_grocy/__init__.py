@@ -78,14 +78,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate old entry."""
+    LOGGER.debug("Migrating from version %s", config_entry.version)
 
     #
     # To v2
     #
 
     if config_entry.version == 1:
-        LOGGER.debug("Migrating from version %s", config_entry.version)
-
         unique_id = str(uuid.uuid4())
 
         v2_options: ConfigEntry = {**config_entry.options}
@@ -101,17 +100,11 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             config_entry, data=v2_data, options=v2_options
         )
 
-        LOGGER.info("Migration to version %s successful", config_entry.version)
-
-    return True
-
     #
     # To v3
     #
 
     if config_entry.version == 2:
-        LOGGER.debug("Migrating from version %s", config_entry.version)
-
         v2_options: ConfigEntry = {**config_entry.options}
         if v2_options is not None and len(v2_options) < 0:
             v2_options["adding_images"] = True
@@ -125,26 +118,25 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             config_entry, data=v2_data, options=v2_options
         )
 
-        LOGGER.info("Migration to version %s successful", config_entry.version)
-
-    return True
-
     #
     # To v4
     #
 
     if config_entry.version == 3:
         v2_options: ConfigEntry = {**config_entry.options}
+        if v2_options is not None and len(v2_options) < 0:
+            if v2_options["adding_images"]:
+                v2_options["image_download_size"] = 100
+            else:
+                v2_options["image_download_size"] = 0
+            v2_options.pop("adding_images")
+
         v2_data: ConfigEntry = {**config_entry.data}
-        if v2_options("adding_images", FALSE):
-            v2_options["image_download_size"] = 100
+        if v2_data["adding_images"]:
             v2_data["image_download_size"] = 100
         else:
-            v2_options["image_download_size"] = 0
             v2_data["image_download_size"] = 0
-
-        v2_options.pop("adding_images", NONE)
-        v2_data.pop("adding_images", NONE)
+        v2_data.pop("adding_images")
 
         config_entry.version = 4
 
@@ -152,7 +144,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             config_entry, data=v2_data, options=v2_options
         )
 
-        LOGGER.info("Migration to version %s successful", config_entry.version)
+    LOGGER.info("Migration to version %s successful", config_entry.version)
 
     return True
 

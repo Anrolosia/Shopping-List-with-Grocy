@@ -10,7 +10,7 @@
                     "mqtt_port": "MQTT - Port",
                     "mqtt_username": "MQTT - Username",
                     "mqtt_password": "MQTT - Password",
-                    "adding_images": "Downloaded product image size? (Select 0 to disable images)",
+                    "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
                     "adding_products_in_sensor": "Add all products in a sensor attribute?"
                 }
             }
@@ -33,7 +33,7 @@
                     "mqtt_port": "MQTT - Port",
                     "mqtt_username": "MQTT - Username",
                     "mqtt_password": "MQTT - Password",
-                    "adding_images": "Fetch product images? (This can slow down integration)",
+                    "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
                     "adding_products_in_sensor": "Add all products in a sensor attribute?"
                 }
             }
