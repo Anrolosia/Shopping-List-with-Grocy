@@ -66,7 +66,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     ): cv.string,
                     vol.Optional(
                         "image_download_size",
-                        default=self.options.get("image_download_size", 0),
+                        default=self.options.get("image_download_size", 100),
                     ): vol.All(cv.positive_int, vol.In([0, 100, 200, 400])),
                     vol.Optional(
                         "adding_products_in_sensor",
@@ -132,7 +132,7 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required("mqtt_password"): cv.string,
                     vol.Optional(
                         "image_download_size",
-                        default=self.options.get("image_download_size", 0),
+                        default=100,
                     ): vol.All(cv.positive_int, vol.In([0, 100, 200, 400])),
                     vol.Optional(
                         "adding_products_in_sensor", default=False
