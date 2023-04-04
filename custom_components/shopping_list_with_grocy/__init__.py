@@ -129,6 +129,31 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     return True
 
+    #
+    # To v4
+    #
+
+    if config_entry.version == 3:
+        v2_options = dict(config_entry.options)
+        v2_data = dict(config_entry.data)
+        if v2_options('adding_images', FALSE) is TRUE:
+            v2_options['image_download_size'] = 100
+            v2_data['image_download_size'] = 100
+        else:
+            v2_options['image_download_size'] = 0
+            v2_data['image_download_size'] = 0
+
+        v2_options.pop('adding_images', NONE)
+
+        config_entry.version = 4
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=v2_data, options=v2_options
+        )
+
+        LOGGER.info("Migration to version %s successful", config_entry.version)
+
+    return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
