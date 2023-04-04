@@ -10,7 +10,7 @@
                     "mqtt_username": "[%key:common::config_flow::data::username%]",
                     "mqtt_password": "[%key:common::config_flow::data::password%]",
                     "create_global_sensor": "Add all products in a sensor attribute?",
-                    "adding_images": "0"
+                    "image_download_size": "0"
                 }
             }
         },
