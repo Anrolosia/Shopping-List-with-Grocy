@@ -10,7 +10,7 @@
                     "mqtt_port": "MQTT - Número de puerto",
                     "mqtt_username": "MQTT - Usuario",
                     "mqtt_password": "MQTT - Contraseña",
-                    "adding_images": "¿Tamaño de la imagen del producto? (Seleccione 0 para desactivar imágenes)",
+                    "adding_images": "¿Descargar las imágenes de los productos? (Esto puede ralentizar la integración)",
                     "adding_products_in_sensor": "¿Agregar todos los productos en un sensor?"
                 }
             }
@@ -19,7 +19,7 @@
             "single_instance_allowed": "Lo siento, solo se permite una única instancia."
         },
         "error": {
-            "invalid_api_url": "La URL de Grocy no es válida. Por favor, utilice una URL válida (http:// o https:// con nombre de dominio o dirección IP)"
+            "invalid_api_url": "La URL de Grocy no es válida. Por favor, inténtalo de nuevo con una URL válida (http:// o https:// con el nombre del dominio o dirección IP)"
         }
     },
     "options": {
@@ -33,13 +33,13 @@
                     "mqtt_port": "MQTT - Número de puerto",
                     "mqtt_username": "MQTT - Usuario",
                     "mqtt_password": "MQTT - Contraseña",
-                    "adding_images": "¿Tamaño de la imagen del producto? (Seleccione 0 para desactivar imágenes)",
+                    "adding_images": "¿Descargar las imágenes de los productos? (Esto puede ralentizar la integración)",
                     "adding_products_in_sensor": "¿Agregar todos los productos en un sensor?"
                 }
             }
         },
         "error": {
-            "invalid_api_url": "La URL de Grocy no es válida. Por favor, utilice una URL válida (http:// o https:// con nombre de dominio o dirección IP)"
+            "invalid_api_url": "La URL de Grocy no es válida. Por favor, inténtalo de nuevo con una URL válida (http:// o https:// con el nombre del dominio o dirección IP)"
         }
     }
 }
