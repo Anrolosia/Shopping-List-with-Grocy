@@ -71,7 +71,7 @@ class ShoppingListWithGrocyApi:
         s = s.lower().strip()
         s = re.sub(r"[^\w\s-]", "", s)
         s = re.sub(r"[\s_-]+", "_", s)
-        s = re.sub(r"^-+|-+$", "", s) 
+        s = re.sub(r"^-+|-+$", "", s)
 
         return self.strip_accents(self.replace_umlauts(s))
 
