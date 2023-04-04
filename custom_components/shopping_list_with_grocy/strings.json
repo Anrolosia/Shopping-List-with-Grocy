@@ -9,7 +9,8 @@
                     "mqtt_port": "1883",
                     "mqtt_username": "[%key:common::config_flow::data::username%]",
                     "mqtt_password": "[%key:common::config_flow::data::password%]",
-                    "create_global_sensor": "Add all products in a sensor attribute?"
+                    "create_global_sensor": "Add all products in a sensor attribute?",
+                    "image_download_size": "0"
                 }
             }
         },

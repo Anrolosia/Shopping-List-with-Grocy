@@ -32,7 +32,7 @@ class ShoppingListWithGrocyApi:
         self.mqtt_port = config.get("mqtt_port", 1883)
         self.mqtt_username = config.get("mqtt_username", None)
         self.mqtt_password = config.get("mqtt_password", None)
-        self.fetch_images = config.get("adding_images", True)
+        self.image_size = config.get("image_download_size", 0)
         self.ha_products = []
         self.final_data = []
         self.state_topic = "homeassistant/sensor/"
@@ -71,7 +71,7 @@ class ShoppingListWithGrocyApi:
         s = s.lower().strip()
         s = re.sub(r"[^\w\s-]", "", s)
         s = re.sub(r"[\s_-]+", "_", s)
-        s = re.sub(r"^-+|-+$", "", s)
+        s = re.sub(r"^-+|-+$", "", s) 
 
         return self.strip_accents(self.replace_umlauts(s))
 
@@ -137,7 +137,7 @@ class ShoppingListWithGrocyApi:
     async def fetch_image(self, image_name: str):
         return await self.request(
             "get",
-            f"api/files/productpictures/{image_name}?force_serve_as=picture&best_fit_width=100",
+            f"api/files/productpictures/{image_name}?force_serve_as=picture&best_fit_width={self.image_size}",
             "application/octet-stream",
         )
 
@@ -196,7 +196,7 @@ class ShoppingListWithGrocyApi:
                 self.ha_products.remove(entity)
 
             if (
-                self.fetch_images
+                self.image_size > 0
                 and product_picture is not None
                 and product_picture != "null"
             ):

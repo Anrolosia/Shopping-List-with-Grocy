@@ -10,7 +10,7 @@
                     "mqtt_port": "MQTT - Port",
                     "mqtt_username": "MQTT - Nom d'utilisateur",
                     "mqtt_password": "MQTT - Mot de passe",
-                    "adding_images": "Récupérer les images des produits? (Cela peut ralentir l'intégration)",
+                    "adding_images": "Taille des images de produits téléchargées ? (Sélectionnez 0 pour désactiver les images)",
                     "adding_products_in_sensor": "Ajouter tous les produits dans les attributs du capteur ?"
                 }
             }
