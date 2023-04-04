@@ -130,7 +130,9 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required("mqtt_username"): cv.string,
                     vol.Required("mqtt_password"): cv.string,
-                    vol.Optional("image_download_size"): cv.int,
+                    vol.Optional("image_download_size", default=0): vol.All(
+                        cv.int, vol.In([0, 100, 200, 400])
+                    ),
                     vol.Optional(
                         "adding_products_in_sensor", default=False
                     ): cv.boolean,
