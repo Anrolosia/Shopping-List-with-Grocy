@@ -67,7 +67,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     vol.Optional(
                         "image_download_size",
                         default=self.options.get("image_download_size", "0")
-                    ): vol.All(cv.string, vol.In(["0", "100", "200", "400"])),
+                    ): vol.All(vol.Coerce(int), vol.In([0, 100, 200, 400])),
                     vol.Optional(
                         "adding_products_in_sensor",
                         default=self.options.get("adding_products_in_sensor", False),
