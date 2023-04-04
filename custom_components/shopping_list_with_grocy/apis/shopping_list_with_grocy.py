@@ -32,7 +32,7 @@ class ShoppingListWithGrocyApi:
         self.mqtt_port = config.get("mqtt_port", 1883)
         self.mqtt_username = config.get("mqtt_username", None)
         self.mqtt_password = config.get("mqtt_password", None)
-        self.fetch_images = config.get("image_download_size", "0")
+        self.fetch_images = config.get("image_download_size", 0)
         self.ha_products = []
         self.final_data = []
         self.state_topic = "homeassistant/sensor/"
@@ -196,7 +196,7 @@ class ShoppingListWithGrocyApi:
                 self.ha_products.remove(entity)
 
             if (
-                self.fetch_images > "0"
+                self.fetch_images > 0
                 and product_picture is not None
                 and product_picture != "null"
             ):
