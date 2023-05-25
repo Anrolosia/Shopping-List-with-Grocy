@@ -180,6 +180,7 @@ class ShoppingListWithGrocyApi:
             shop_list_id = ""
             in_shop_list = "0"
             note = ""
+            qty_in_stock = "0"
             picture = ""
             location = ""
             group = ""
@@ -219,6 +220,12 @@ class ShoppingListWithGrocyApi:
                         else ""
                     )
 
+            stock_qty = 0
+            for in_stock in data["stock"]:
+                if product_id == in_stock["product_id"]:
+                    stock_qty += int(in_stock["amount"])
+            qty_in_stock = str(stock_qty)
+
             if product_location is not None and product_location != "null":
                 for locations in data["locations"]:
                     if product_location == locations["id"]:
@@ -256,6 +263,7 @@ class ShoppingListWithGrocyApi:
                     "product_id": product_id,
                     "id_in_shopping_list": shop_list_id,
                     "qty_in_shopping_list": in_shop_list,
+                    "qty_in_stock": qty_in_stock,
                     "product_image": picture,
                     "topic": topic,
                     "note": note,
@@ -464,6 +472,7 @@ class ShoppingListWithGrocyApi:
                     "products",
                     "shopping_list",
                     "locations",
+                    "stock",
                     "product_groups",
                 ]
                 data = await gather(*[self.fetch_list(path) for path in titles])
