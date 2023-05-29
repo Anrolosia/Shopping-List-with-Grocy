@@ -46,35 +46,6 @@ class ShoppingListWithGrocyApi:
     def get_entity_in_hass(self, entity_id):
         return self.hass.states.get(entity_id)
 
-    def strip_accents(self, s):
-        return "".join(
-            c
-            for c in unicodedata.normalize("NFD", s)
-            if unicodedata.category(c) != "Mn"
-        )
-
-    def replace_umlauts(self, s):
-        """replace special German umlauts (vowel mutations) from text.
-        ä -> ae...
-        ü -> ue
-        """
-        vowel_char_map = {
-            ord("ä"): "ae",
-            ord("ü"): "ue",
-            ord("ö"): "oe",
-            ord("ß"): "ss",
-        }
-
-        return s.translate(vowel_char_map)
-
-    def slugify(self, s):
-        s = s.lower().strip()
-        s = re.sub(r"[^\w\s-]", "", s)
-        s = re.sub(r"[\s_-]+", "_", s)
-        s = re.sub(r"^-+|-+$", "", s)
-
-        return self.strip_accents(self.replace_umlauts(s))
-
     def encode_base64(self, message):
         message_bytes = message.encode()
         base64_bytes = base64.b64encode(message_bytes)
@@ -167,6 +138,26 @@ class ShoppingListWithGrocyApi:
 
         return data
 
+    async def remove_product(self, product):
+        if product.endswith("))"):
+            product = product[:-2]
+
+        entity_id = product.replace("sensor.", "")
+        LOGGER.debug("product %s not found on Grocy, deleting it...", entity_id)
+        topic = self.state_topic + entity_id + "/state"
+        self.client.connect(self.mqtt_server, self.mqtt_port)
+        self.client.loop_start()
+        self.update_object_in_mqtt(
+            topic + "/config",
+            "",
+        )
+        self.update_object_in_mqtt(
+            topic,
+            "",
+        )
+        self.client.loop_stop()
+        self.client.disconnect()
+
     async def parse_products(self, data):
         self.current_time = datetime.now(timezone.utc)
 
@@ -189,8 +180,7 @@ class ShoppingListWithGrocyApi:
             product_picture = product["picture_file_name"]
             product_location = product["location_id"]
             product_group = product["product_group_id"]
-            slug = self.slugify(product_name)
-            object_id = "shopping_list_with_grocy_" + slug + "_" + str(product_id)
+            object_id = "shopping_list_with_grocy_product_" + str(product_id)
             topic = self.state_topic + object_id + "/state"
             entity = "sensor." + object_id
             if entity in self.ha_products:
@@ -274,25 +264,12 @@ class ShoppingListWithGrocyApi:
                     topic,
                     json.dumps(prod_dict),
                 )
+        self.client.loop_stop()
+        self.client.disconnect()
 
         if len(self.ha_products) > 0:
             for product in self.ha_products:
-                if product.endswith("))"):
-                    product = product[:-2]
-
-                entity_id = product.replace("sensor.", "")
-                LOGGER.debug("product %s not found on Grocy, deleting it...", entity_id)
-                topic = self.state_topic + entity_id + "/state"
-                self.update_object_in_mqtt(
-                    topic + "/config",
-                    "",
-                )
-                self.update_object_in_mqtt(
-                    topic,
-                    "",
-                )
-        self.client.loop_stop()
-        self.client.disconnect()
+                await self.remove_product(product)
 
     async def update_grocy_product(
         self, product_id, product_note, remove_product=False
