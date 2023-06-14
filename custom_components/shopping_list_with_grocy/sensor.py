@@ -10,15 +10,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.entity import Entity
 
-from .const import (
-    DOMAIN,
-    SERVICE_ADD,
-    SERVICE_ATTR_NOTE,
-    SERVICE_ATTR_PRODUCT_ID,
-    SERVICE_NOTE,
-    SERVICE_REFRESH,
-    SERVICE_REMOVE,
-)
+from .const import DOMAIN
 
 LOGGER = logging.getLogger(__name__)
 

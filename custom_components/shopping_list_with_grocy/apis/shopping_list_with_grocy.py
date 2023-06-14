@@ -13,7 +13,7 @@ from async_timeout import timeout
 from dateutil.relativedelta import relativedelta
 from homeassistant.core import HomeAssistant
 
-from ..const import DOMAIN
+from ..const import DOMAIN, MQTT_ENTITY_VERSION
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +35,8 @@ class ShoppingListWithGrocyApi:
         self.image_size = config.get("image_download_size", 0)
         self.ha_products = []
         self.final_data = []
-        self.state_topic = "homeassistant/sensor/"
+        self.config_topic = "homeassistant/sensor/"
+        self.state_topic = "shopping-list-with-grocy/products/"
         self.current_time = datetime.now(timezone.utc)
         self.client = mqtt.Client("ha-client")
         if self.mqtt_username is not None and self.mqtt_password is not None:
@@ -59,6 +60,11 @@ class ShoppingListWithGrocyApi:
             qos=0,
             retain=True,
         )
+
+    def serialize_datetime(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError("Type not serializable")
 
     async def request(
         self, method, url, accept, payload={}, **kwargs
@@ -144,15 +150,21 @@ class ShoppingListWithGrocyApi:
 
         entity_id = product.replace("sensor.", "")
         LOGGER.debug("product %s not found on Grocy, deleting it...", entity_id)
-        topic = self.state_topic + entity_id + "/state"
+        config_topic = self.config_topic + entity_id + "/config"
+        state_topic = self.state_topic + entity_id + "/state"
+        attributes_topic = self.state_topic + entity_id + "/attributes"
         self.client.connect(self.mqtt_server, self.mqtt_port)
         self.client.loop_start()
         self.update_object_in_mqtt(
-            topic + "/config",
+            config_topic,
             "",
         )
         self.update_object_in_mqtt(
-            topic,
+            state_topic,
+            "",
+        )
+        self.update_object_in_mqtt(
+            attributes_topic,
             "",
         )
         self.client.loop_stop()
@@ -168,9 +180,8 @@ class ShoppingListWithGrocyApi:
         self.client.connect(self.mqtt_server, self.mqtt_port)
         self.client.loop_start()
         for product in data["products"]:
-            shop_list_id = ""
-            in_shop_list = "0"
-            note = ""
+            shopping_lists = {}
+            qty_in_shopping_lists = 0
             qty_in_stock = "0"
             picture = ""
             location = ""
@@ -180,8 +191,17 @@ class ShoppingListWithGrocyApi:
             product_picture = product["picture_file_name"]
             product_location = product["location_id"]
             product_group = product["product_group_id"]
-            object_id = "shopping_list_with_grocy_product_" + str(product_id)
-            topic = self.state_topic + object_id + "/state"
+            object_id = (
+                "shopping_list_with_grocy_product_v"
+                + str(MQTT_ENTITY_VERSION)
+                + "_"
+                + str(product_id)
+            )
+
+            config_topic = self.config_topic + object_id + "/config"
+            state_topic = self.state_topic + object_id + "/state"
+            attributes_topic = self.state_topic + object_id + "/attributes"
+
             entity = "sensor." + object_id
             if entity in self.ha_products:
                 self.ha_products.remove(entity)
@@ -200,6 +220,7 @@ class ShoppingListWithGrocyApi:
             for in_shopping_list in data["shopping_list"]:
                 if product_id == in_shopping_list["product_id"]:
                     shop_list_id = in_shopping_list["id"]
+                    shopping_list_id = in_shopping_list["shopping_list_id"]
                     in_shop_list = in_shopping_list["amount"]
                     note = (
                         in_shopping_list["note"]
@@ -209,6 +230,12 @@ class ShoppingListWithGrocyApi:
                         )
                         else ""
                     )
+                    shopping_lists["list_" + shopping_list_id] = {
+                        "shop_list_id": shop_list_id,
+                        "qty": int(in_shop_list),
+                        "note": note,
+                    }
+                    qty_in_shopping_lists += int(in_shop_list)
 
             stock_qty = 0
             for in_stock in data["stock"]:
@@ -236,32 +263,46 @@ class ShoppingListWithGrocyApi:
                 )
                 prod_dict_config = {
                     "name": product_name,
-                    "value_template": "{{ value_json.qty_in_shopping_list }}",
-                    "json_attributes_topic": topic,
-                    "state_topic": topic,
+                    "json_attributes_topic": attributes_topic,
+                    "json_attributes_template": "{{ value_json | tojson }}",
+                    "force_update": True,
+                    "state_topic": state_topic,
                     "icon": "mdi:cart",
                     "unique_id": object_id,
                     "object_id": object_id,
                 }
                 self.update_object_in_mqtt(
-                    topic + "/config",
+                    config_topic,
                     json.dumps(prod_dict_config),
                 )
 
             if entity is None or entity.last_updated <= self.current_time:
                 prod_dict = {
                     "product_id": product_id,
-                    "id_in_shopping_list": shop_list_id,
-                    "qty_in_shopping_list": in_shop_list,
                     "qty_in_stock": qty_in_stock,
                     "product_image": picture,
-                    "topic": topic,
-                    "note": note,
+                    "topic": state_topic,
                     "location": location,
                     "group": group,
                 }
+                for shop_list in shopping_lists:
+                    prod_dict.update(
+                        {
+                            shop_list + "_qty": shopping_lists[shop_list].get("qty"),
+                            shop_list
+                            + "_shop_list_id": shopping_lists[shop_list].get(
+                                "shop_list_id"
+                            ),
+                            shop_list + "_note": shopping_lists[shop_list].get("note"),
+                        }
+                    )
+                prod_dict.update({"list_count": len(shopping_lists)})
                 self.update_object_in_mqtt(
-                    topic,
+                    state_topic,
+                    qty_in_shopping_lists,
+                )
+                self.update_object_in_mqtt(
+                    attributes_topic,
                     json.dumps(prod_dict),
                 )
         self.client.loop_stop()
@@ -272,17 +313,21 @@ class ShoppingListWithGrocyApi:
                 await self.remove_product(product)
 
     async def update_grocy_product(
-        self, product_id, product_note, remove_product=False
+        self, product_id, shopping_list_id, product_note, remove_product=False
     ):
         endpoint = "remove-product" if remove_product else "add-product"
         payload = {
             "product_id": int(product_id),
-            "list_id": 1,
+            "list_id": shopping_list_id,
             "product_amount": 1,
             "note": product_note,
         }
         if remove_product:
-            payload = {"product_id": int(product_id), "list_id": 1, "product_amount": 1}
+            payload = {
+                "product_id": int(product_id),
+                "list_id": shopping_list_id,
+                "product_amount": 1,
+            }
 
         return await self.request(
             "post",
@@ -291,50 +336,99 @@ class ShoppingListWithGrocyApi:
             json.dumps(payload),
         )
 
-    async def manage_product(self, product_id, note="", remove_product=False):
+    async def manage_product(
+        self, product_id, shopping_list_id=1, note="", remove_product=False
+    ):
         LOGGER.debug("manage_product, product_id: %s", product_id)
         entity = self.get_entity_in_hass(product_id)
         if entity is not None:
-            qty = int(entity.attributes.get("qty_in_shopping_list")) + 1
+            force_update = True
+            total_qty = int(entity.state) + 1
+            qty = 1
+            list_count = entity.attributes.get("list_count") + 1
+            if (
+                entity.attributes.get("list_" + str(shopping_list_id) + "_qty")
+                is not None
+            ):
+                qty = (
+                    int(entity.attributes.get("list_" + str(shopping_list_id) + "_qty"))
+                    + 1
+                )
+                list_count -= 1
+                force_update = False
             if remove_product:
-                qty = int(entity.attributes.get("qty_in_shopping_list")) - 1
+                total_qty = int(entity.state) - 1
+                qty = (
+                    int(entity.attributes.get("list_" + str(shopping_list_id) + "_qty"))
+                    - 1
+                )
             await self.update_grocy_product(
-                entity.attributes.get("product_id"), note, remove_product
+                entity.attributes.get("product_id"),
+                str(shopping_list_id),
+                note,
+                remove_product,
             )
             entity_attributes = entity.attributes.copy()
-            entity_attributes.update(qty_in_shopping_list=qty, note=note)
+            if qty > 0:
+                entity_attributes.update(
+                    {
+                        "qty_in_shopping_lists": total_qty,
+                        "list_" + str(shopping_list_id) + "_qty": qty,
+                        "list_" + str(shopping_list_id) + "_note": note,
+                        "list_count": list_count,
+                    }
+                )
+            else:
+                entity_attributes.pop("list_" + str(shopping_list_id) + "_qty")
+                entity_attributes.pop("list_" + str(shopping_list_id) + "_note")
+                entity_attributes.pop("list_" + str(shopping_list_id) + "_shop_list_id")
+                entity_attributes.update(
+                    {
+                        "qty_in_shopping_lists": total_qty,
+                        "list_count": entity.attributes.get("list_count") - 1,
+                    }
+                )
             self.client.connect(self.mqtt_server, self.mqtt_port)
             self.client.loop_start()
             self.update_object_in_mqtt(
-                entity_attributes.get("topic"),
+                entity_attributes.get("topic").replace("state", "attributes"),
                 json.dumps(entity_attributes),
+            )
+            self.update_object_in_mqtt(
+                entity_attributes.get("topic"),
+                total_qty,
             )
             self.client.loop_stop()
             self.client.disconnect()
+            if force_update:
+                async with timeout(60):
+                    await self.retrieve_data(True)
 
-    async def update_note(self, product_id, note):
+    async def update_note(self, product_id, shopping_list_id, note):
         LOGGER.debug("update_note, product_id: %s", product_id)
         entity = self.get_entity_in_hass(product_id)
         if entity is not None:
             payload = {
                 "product_id": entity.attributes.get("product_id"),
-                "shopping_list_id": "1",
-                "amount": entity.attributes.get("qty_in_shopping_list"),
+                "shopping_list_id": shopping_list_id,
+                "amount": entity.attributes.get(
+                    "list_" + str(shopping_list_id) + "_qty"
+                ),
                 "note": note,
             }
 
             await self.request(
                 "put",
-                f"api/objects/shopping_list/{entity.attributes.get('id_in_shopping_list')}",
+                f"api/objects/shopping_list/{entity.attributes.get('list_' + str(shopping_list_id) + '_shop_list_id')}",
                 "*/*",
                 json.dumps(payload),
             )
             entity_attributes = entity.attributes.copy()
-            entity_attributes.update(note=note)
+            entity_attributes.update({"list_" + str(shopping_list_id) + "_note": note})
             self.client.connect(self.mqtt_server, self.mqtt_port)
             self.client.loop_start()
             self.update_object_in_mqtt(
-                entity_attributes.get("topic"),
+                entity_attributes.get("topic").replace("state", "attributes"),
                 json.dumps(entity_attributes),
             )
             self.client.loop_stop()

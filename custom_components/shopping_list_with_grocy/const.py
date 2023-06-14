@@ -2,6 +2,8 @@
 
 DOMAIN = "shopping_list_with_grocy"
 
+MQTT_ENTITY_VERSION = 1
+
 STATE_INIT = "init"
 STATE_READY = "ready"
 STATE_COMPLETED = "completed"
@@ -12,4 +14,5 @@ SERVICE_ADD = "add_product"
 SERVICE_REMOVE = "remove_product"
 SERVICE_NOTE = "update_note"
 SERVICE_ATTR_PRODUCT_ID = "product_id"
+SERVICE_ATTR_SHOPPING_LIST_ID = "shopping_list_id"
 SERVICE_ATTR_NOTE = "note"

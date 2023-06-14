@@ -9,6 +9,7 @@ from .const import (
     SERVICE_ADD,
     SERVICE_ATTR_NOTE,
     SERVICE_ATTR_PRODUCT_ID,
+    SERVICE_ATTR_SHOPPING_LIST_ID,
     SERVICE_NOTE,
     SERVICE_REFRESH,
     SERVICE_REMOVE,
@@ -22,6 +23,7 @@ REFRESH_SCHEMA = vol.Schema({})
 ADD_SCHEMA = vol.Schema(
     {
         vol.Required(SERVICE_ATTR_PRODUCT_ID): cv.string,
+        vol.Required(SERVICE_ATTR_SHOPPING_LIST_ID, default=1): cv.positive_int,
         vol.Required(SERVICE_ATTR_NOTE, default=""): cv.string,
     }
 )
@@ -29,12 +31,14 @@ ADD_SCHEMA = vol.Schema(
 REMOVE_SCHEMA = vol.Schema(
     {
         vol.Required(SERVICE_ATTR_PRODUCT_ID): cv.string,
+        vol.Required(SERVICE_ATTR_SHOPPING_LIST_ID, default=1): cv.positive_int,
     }
 )
 
 NOTE_SCHEMA = vol.Schema(
     {
         vol.Required(SERVICE_ATTR_PRODUCT_ID): cv.string,
+        vol.Required(SERVICE_ATTR_SHOPPING_LIST_ID, default=1): cv.positive_int,
         vol.Required(SERVICE_ATTR_NOTE, default=""): cv.string,
     }
 )
@@ -56,16 +60,19 @@ def async_setup_services(hass) -> None:
         if service == SERVICE_ADD:
             product_id = data.get(SERVICE_ATTR_PRODUCT_ID, "")
             note = data.get(SERVICE_ATTR_NOTE, "")
-            await coordinator.add_product(product_id, note)
+            shopping_list_id = data.get(SERVICE_ATTR_SHOPPING_LIST_ID, 1)
+            await coordinator.add_product(product_id, shopping_list_id, note)
 
         if service == SERVICE_REMOVE:
             product_id = data.get(SERVICE_ATTR_PRODUCT_ID, "")
-            await coordinator.remove_product(product_id)
+            shopping_list_id = data.get(SERVICE_ATTR_SHOPPING_LIST_ID, 1)
+            await coordinator.remove_product(product_id, shopping_list_id)
 
         if service == SERVICE_NOTE:
             product_id = data.get(SERVICE_ATTR_PRODUCT_ID, "")
             note = data.get(SERVICE_ATTR_NOTE, "")
-            await coordinator.update_note(product_id, note)
+            shopping_list_id = data.get(SERVICE_ATTR_SHOPPING_LIST_ID, 1)
+            await coordinator.update_note(product_id, shopping_list_id, note)
 
     hass.services.async_register(
         DOMAIN,

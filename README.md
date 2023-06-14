@@ -124,6 +124,7 @@ This integration provides 4 services
 service: shopping_list_with_grocy.add_product
 data:
   product_id: sensor.shopping_list_with_grocy_<your product>
+  shopping_list_id: <id of your shopping list on Grocy> # Optional, default is list 1
   note: "This is the note of the shopping list item..."
 ```
 ##### shopping_list_with_grocy.remove_product
@@ -132,6 +133,7 @@ data:
 service: shopping_list_with_grocy.remove_product
 data:
   product_id: sensor.shopping_list_with_grocy_<your product>
+  shopping_list_id: <id of your shopping list on Grocy> # Optional, default is list 1
 ```
 
 ##### shopping_list_with_grocy.update_note
@@ -140,6 +142,7 @@ data:
 service: shopping_list_with_grocy.update_note
 data:
   product_id: sensor.shopping_list_with_grocy_<your product>
+  shopping_list_id: <id of your shopping list on Grocy> # Optional, default is list 1
   note: "This is the note of the shopping list item..."
 ```
 
@@ -183,7 +186,7 @@ cards:
                 aspect_ratio: 4/3
                 show_icon: false
                 show_label: true
-                show_state: true
+                show_state: false
                 label: |
                   [[[
                     return `(${entity.attributes.location})`
@@ -228,32 +231,6 @@ cards:
                           else
                            return "var(--ha-card-border-width, 1px)";
                         ]]]
-                  state:
-                    - background-color: green
-                    - border-radius: 50%
-                    - position: absolute
-                    - right: 5%
-                    - top: 5%
-                    - height: |
-                        [[[
-                          if (entity.state > 0) return '20px';
-                          else return '0px';
-                        ]]]
-                    - width: |
-                        [[[
-                          if (entity.state > 0) return '20px';
-                          else return '0px';
-                        ]]]
-                    - font-size: |
-                        [[[
-                          if (entity.state > 0) return '14px';
-                          else return '0px';
-                        ]]]
-                    - line-height: |
-                        [[[
-                          if (entity.state > 0) return '20px';
-                          else return '0px';
-                        ]]]
                   custom_fields:
                     gradient:
                       - display: |
@@ -291,8 +268,41 @@ cards:
                             else
                              return "0px";
                           ]]]
+                    qty_in_list:
+                      - background-color: green
+                      - border-radius: 50%
+                      - position: absolute
+                      - right: 5%
+                      - top: 5%
+                      - height: |
+                          [[[
+                            if (entity.state > 0) return '20px';
+                            else return '0px';
+                          ]]]
+                      - width: |
+                          [[[
+                            if (entity.state > 0) return '20px';
+                            else return '0px';
+                          ]]]
+                      - font-size: |
+                          [[[
+                            if (entity.state > 0) return '14px';
+                            else return '0px';
+                          ]]]
+                      - line-height: |
+                          [[[
+                            if (entity.state > 0) return '20px';
+                            else return '0px';
+                          ]]]
                 custom_fields:
                   gradient: '&nbsp;'
+                  qty_in_list: >-
+                    [[[
+                      if ('list_1_qty' in entity.attributes)
+                       return `${entity.attributes.list_1_qty}`;
+                      else
+                       return "0";
+                    ]]]
                 card_mod:
                   style: |
                     ha-card {
@@ -372,61 +382,98 @@ cards:
             filter:
               include:
                 - entity_id: sensor.shopping_list_with_grocy_.*
-                  state: '>0'
+                  attributes:
+                    list_1_qty: '>0'
                   not:
                     attributes:
-                      note: out_of_stock
+                      list_1_note: out_of_stock
+                  sort:
+                    method: friendly_name
                   options:
-                    type: tile
-                    entity: this.entity_id
-                    show_name: false
-                    show_icon: true
-                    aspect_ratio: 1/1
-                    icon: mdi:cart-remove
-                    icon_tap_action:
-                      action: call-service
-                      service: shopping_list_with_grocy.remove_product
-                      service_data:
-                        product_id: this.entity_id
-                    tap_action:
-                      action: call-service
-                      service: shopping_list_with_grocy.update_note
-                      service_data:
-                        product_id: this.entity_id
-                        note: out_of_stock
-                    card_mod:
-                      style:
-                        ha-tile-info$: |
-                          .info {
-                            flex-direction: row !important;
-                            align-items: center !important;
-                            align-content: stretch;
-                            flex-wrap: nowrap;
-                            justify-content: flex-start;
-                            height: 100%;
-                            height: -moz-available;          /* WebKit-based browsers will ignore this. */
-                            height: -webkit-fill-available;  /* Mozilla-based browsers will ignore this. */
-                            height: fill-available;
-                          }
-                          .primary {
-                            flex: 1 1 auto;
-                            align-self: auto;
-                            width: auto;
-                          }
-                          .secondary {
-                            flex: 0 1 auto;
-                            align-self: auto;
-                            width: auto;
-                            font-size: initial !important;
-                          }
-                        .: |
-                          ha-tile-info {
-                            display: flex;
-                            align-items: center;
-                            height: 100%;
-                            height: -moz-available;          /* WebKit-based browsers will ignore this. */
-                            height: -webkit-fill-available;  /* Mozilla-based browsers will ignore this. */
-                            height: fill-available;
+                    type: custom:collapsable-cards
+                    cards:
+                      - type: custom:bootstrap-grid-card
+                        cards:
+                          - type: row
+                            cards:
+                              - type: custom:button-card
+                                class: col-3
+                                icon: mdi:cart-minus
+                                tap_action:
+                                  action: call-service
+                                  service: shopping_list_with_grocy.remove_product
+                                  service_data:
+                                    product_id: this.entity_id
+                                    shopping_list_id: 1
+                              - type: custom:button-card
+                                class: col-3
+                                icon: mdi:cart-plus
+                                tap_action:
+                                  action: call-service
+                                  service: shopping_list_with_grocy.add_product
+                                  service_data:
+                                    product_id: this.entity_id
+                                    shopping_list_id: 1
+                              - type: custom:button-card
+                                class: col-3
+                                icon: mdi:cart-off
+                                tap_action:
+                                  action: call-service
+                                  service: shopping_list_with_grocy.update_note
+                                  service_data:
+                                    product_id: this.entity_id
+                                    shopping_list_id: 1
+                                    note: out_of_stock
+                    title_card:
+                      type: custom:button-card
+                      entity: this.entity_id
+                      tap_action:
+                        action: none
+                      styles:
+                        grid:
+                          - grid-template-rows: 1fr
+                          - grid-template-areas: '"i n qty_in_list"'
+                          - grid-template-columns: min-content 1fr min-content
+                        card:
+                          - padding: calc(var(--bs-gutter-x) * 0.5)
+                          - background-color: |
+                              [[[
+                                if (entity.attributes.list_1_note == 'out_of_stock')
+                                 return "red";
+                                else
+                                 return "var( --ha-card-background, var(--card-background-color, white) )";
+                              ]]]
+                        icon:
+                          - padding: 8px
+                          - width: 24px
+                          - height: 24px
+                        name:
+                          - align-self: center
+                          - text-align: left
+                          - width: 100%
+                          - margin-left: 46px
+                          - margin-right: 38px
+                          - font-size: 1rem;
+                          - white-space: nowrap
+                          - overflow: hidden
+                          - text-overflow: ellipsis
+                        custom_fields:
+                          qty_in_list:
+                          - align-self: center
+                          - justify-self: start
+                          - padding-left: 8px
+                      custom_fields:
+                        qty_in_list: >-
+                          [[[
+                            if ('list_1_qty' in entity.attributes)
+                             return `${entity.attributes.list_1_qty}`;
+                            else
+                             return "0";
+                          ]]]
+                      card_mod:
+                        style: |
+                          :host #qty_in_list {
+                            padding: calc(var(--bs-gutter-x) * 0.5)
                           }
               exclude: []
             card:
@@ -442,64 +489,59 @@ cards:
             filter:
               include:
                 - entity_id: sensor.shopping_list_with_grocy_.*
-                  state: '>0'
                   attributes:
-                    note: out_of_stock
+                    list_1_qty: '>0'
+                    list_1_note: out_of_stock
                   options:
-                    type: tile
+                    type: custom:button-card
                     entity: this.entity_id
-                    show_name: false
-                    show_icon: true
-                    aspect_ratio: 1/1
                     icon: mdi:cart-arrow-up
                     color: disabled
-                    icon_tap_action:
-                      action: call-service
-                      service: shopping_list_with_grocy.update_note
-                      service_data:
-                        product_id: this.entity_id
-                        note: ''
                     tap_action:
                       action: call-service
                       service: shopping_list_with_grocy.update_note
                       service_data:
                         product_id: this.entity_id
                         note: ''
+                    styles:
+                      grid:
+                        - grid-template-rows: 1fr
+                        - grid-template-areas: '"i n qty_in_list"'
+                        - grid-template-columns: min-content 1fr min-content
+                      card:
+                        - padding: calc(var(--bs-gutter-x) * 0.5)
+                      icon:
+                        - padding: 8px
+                        - width: 24px
+                        - height: 24px
+                      name:
+                        - align-self: center
+                        - text-align: left
+                        - width: 100%
+                        - margin-left: 46px
+                        - margin-right: 38px
+                        - font-size: 1rem;
+                        - white-space: nowrap
+                        - overflow: hidden
+                        - text-overflow: ellipsis
+                      custom_fields:
+                        qty_in_list:
+                        - align-self: center
+                        - justify-self: start
+                        - padding-left: 8px
+                    custom_fields:
+                      qty_in_list: >-
+                        [[[
+                          if ('list_1_qty' in entity.attributes)
+                           return `${entity.attributes.list_1_qty}`;
+                          else
+                           return "0";
+                        ]]]
                     card_mod:
-                      style:
-                        ha-tile-info$: |
-                          .info {
-                            flex-direction: row !important;
-                            align-items: center !important;
-                            align-content: stretch;
-                            flex-wrap: nowrap;
-                            justify-content: flex-start;
-                            height: 100%;
-                            height: -moz-available;          /* WebKit-based browsers will ignore this. */
-                            height: -webkit-fill-available;  /* Mozilla-based browsers will ignore this. */
-                            height: fill-available;
-                          }
-                          .primary {
-                            flex: 1 1 auto;
-                            align-self: auto;
-                            width: auto;
-                          }
-                          .secondary {
-                            flex: 0 1 auto;
-                            align-self: auto;
-                            width: auto;
-                            font-size: initial;
-                          }
-                        .: |
-                          ha-tile-info {
-                            display: flex;
-                            align-items: center;
-                            height: 100%;
-                            height: -moz-available;          /* WebKit-based browsers will ignore this. */
-                            height: -webkit-fill-available;  /* Mozilla-based browsers will ignore this. */
-                            height: fill-available !important;
-                          }
-              exclude: []
+                      style: |
+                        :host #qty_in_list {
+                          padding: calc(var(--bs-gutter-x) * 0.5)
+                        }
             card:
               type: vertical-stack
             card_param: cards
@@ -516,7 +558,9 @@ grocy_clear_shopping_list:
   sequence:
   - alias: Set a templated variable
     variables:
-      in_shopping_list: '{{ states.sensor | select("search", ".shopping_list_with_grocy_.+") | selectattr("state", "gt", "0") | selectattr("attributes.note", "eq", "") | map(attribute="entity_id") | list }}'
+      in_shopping_list: '{{ states.sensor | select("search", ".shopping_list_with_grocy_.+")
+        | selectattr("state", "gt", "0") | selectattr("attributes.list_1_note", "eq", "")
+        | map(attribute="entity_id") | list }}'
       default_products: [
           'sensor.shopping_list_with_grocy_<product_1>',
           'sensor.shopping_list_with_grocy_<product_4>',

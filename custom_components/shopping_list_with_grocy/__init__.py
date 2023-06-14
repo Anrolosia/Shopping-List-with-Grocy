@@ -192,11 +192,11 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         async with timeout(60):
             return await self.api.retrieve_data(True)
 
-    async def add_product(self, product_id, note):
-        await self.api.manage_product(product_id, note)
+    async def add_product(self, product_id, shopping_list_id, note):
+        await self.api.manage_product(product_id, shopping_list_id, note)
 
-    async def remove_product(self, product_id):
-        await self.api.manage_product(product_id, "", True)
+    async def remove_product(self, product_id, shopping_list_id):
+        await self.api.manage_product(product_id, shopping_list_id, "", True)
 
-    async def update_note(self, product_id, note):
-        await self.api.update_note(product_id, note)
+    async def update_note(self, product_id, shopping_list_id, note):
+        await self.api.update_note(product_id, shopping_list_id, note)
