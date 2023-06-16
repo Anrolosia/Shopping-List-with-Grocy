@@ -12,8 +12,6 @@ body = """
 {% else %}\
     ## [unreleased]
 {% endif %}\
-⚠️ This version (0.7.*) includes breaking changes to allow users to display and manage multiple shopping lists in   ⚠️
-⚠️ HomeAssistant, please refer to the dashboard UI example and the script example in the README.                    ⚠️
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | upper_first }}
     {% for commit in commits %}

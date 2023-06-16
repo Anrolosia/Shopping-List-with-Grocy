@@ -230,7 +230,7 @@ class ShoppingListWithGrocyApi:
                         )
                         else ""
                     )
-                    shopping_lists["list_" + shopping_list_id] = {
+                    shopping_lists["list_" + str(shopping_list_id)] = {
                         "shop_list_id": shop_list_id,
                         "qty": int(in_shop_list),
                         "note": note,
@@ -254,27 +254,6 @@ class ShoppingListWithGrocyApi:
                         group = groups["name"]
 
             entity = self.get_entity_in_hass("sensor." + object_id)
-
-            if entity is None:
-                LOGGER.debug(
-                    "Product %s (%s) not found, creating it...",
-                    product_name,
-                    "sensor." + object_id,
-                )
-                prod_dict_config = {
-                    "name": product_name,
-                    "json_attributes_topic": attributes_topic,
-                    "json_attributes_template": "{{ value_json | tojson }}",
-                    "force_update": True,
-                    "state_topic": state_topic,
-                    "icon": "mdi:cart",
-                    "unique_id": object_id,
-                    "object_id": object_id,
-                }
-                self.update_object_in_mqtt(
-                    config_topic,
-                    json.dumps(prod_dict_config),
-                )
 
             if entity is None or entity.last_updated <= self.current_time:
                 prod_dict = {
@@ -305,6 +284,27 @@ class ShoppingListWithGrocyApi:
                     attributes_topic,
                     json.dumps(prod_dict),
                 )
+
+            if entity is None:
+                LOGGER.debug(
+                    "Product %s (%s) not found, creating it...",
+                    product_name,
+                    "sensor." + object_id,
+                )
+                prod_dict_config = {
+                    "name": product_name,
+                    "json_attributes_topic": attributes_topic,
+                    "json_attributes_template": "{{ value_json | tojson }}",
+                    "state_topic": state_topic,
+                    "icon": "mdi:cart",
+                    "unique_id": object_id,
+                    "object_id": object_id,
+                }
+                self.update_object_in_mqtt(
+                    config_topic,
+                    json.dumps(prod_dict_config),
+                )
+
         self.client.loop_stop()
         self.client.disconnect()
 
@@ -342,7 +342,6 @@ class ShoppingListWithGrocyApi:
         LOGGER.debug("manage_product, product_id: %s", product_id)
         entity = self.get_entity_in_hass(product_id)
         if entity is not None:
-            force_update = True
             total_qty = int(entity.state) + 1
             qty = 1
             list_count = entity.attributes.get("list_count") + 1
@@ -355,7 +354,6 @@ class ShoppingListWithGrocyApi:
                     + 1
                 )
                 list_count -= 1
-                force_update = False
             if remove_product:
                 total_qty = int(entity.state) - 1
                 qty = (
@@ -400,9 +398,6 @@ class ShoppingListWithGrocyApi:
             )
             self.client.loop_stop()
             self.client.disconnect()
-            if force_update:
-                async with timeout(60):
-                    await self.retrieve_data(True)
 
     async def update_note(self, product_id, shopping_list_id, note):
         LOGGER.debug("update_note, product_id: %s", product_id)
