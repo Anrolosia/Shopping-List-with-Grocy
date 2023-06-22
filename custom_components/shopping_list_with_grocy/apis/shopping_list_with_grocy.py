@@ -191,6 +191,11 @@ class ShoppingListWithGrocyApi:
             product_picture = product["picture_file_name"]
             product_location = product["location_id"]
             product_group = product["product_group_id"]
+            qty_factor = 1.0
+            if "qu_factor_purchase_to_stock" in product and (
+                product["qu_id_purchase"] != product["qu_id_stock"]
+            ):
+                qty_factor = float(product["qu_factor_purchase_to_stock"])
             object_id = (
                 "shopping_list_with_grocy_product_v"
                 + str(MQTT_ENTITY_VERSION)
@@ -222,6 +227,7 @@ class ShoppingListWithGrocyApi:
                     shop_list_id = in_shopping_list["id"]
                     shopping_list_id = in_shopping_list["shopping_list_id"]
                     in_shop_list = in_shopping_list["amount"]
+                    in_shop_list = str(round(int(in_shop_list) / qty_factor))
                     note = (
                         in_shopping_list["note"]
                         if (
@@ -259,6 +265,7 @@ class ShoppingListWithGrocyApi:
                 prod_dict = {
                     "product_id": product_id,
                     "qty_in_stock": qty_in_stock,
+                    "qu_factor_purchase_to_stock": str(qty_factor),
                     "product_image": picture,
                     "topic": state_topic,
                     "location": location,
@@ -313,20 +320,25 @@ class ShoppingListWithGrocyApi:
                 await self.remove_product(product)
 
     async def update_grocy_product(
-        self, product_id, shopping_list_id, product_note, remove_product=False
+        self,
+        product_id,
+        qu_factor_purchase_to_stock,
+        shopping_list_id,
+        product_note,
+        remove_product=False,
     ):
         endpoint = "remove-product" if remove_product else "add-product"
         payload = {
             "product_id": int(product_id),
             "list_id": shopping_list_id,
-            "product_amount": 1,
+            "product_amount": round(float(qu_factor_purchase_to_stock)),
             "note": product_note,
         }
         if remove_product:
             payload = {
                 "product_id": int(product_id),
                 "list_id": shopping_list_id,
-                "product_amount": 1,
+                "product_amount": round(float(qu_factor_purchase_to_stock)),
             }
 
         return await self.request(
@@ -362,6 +374,7 @@ class ShoppingListWithGrocyApi:
                 )
             await self.update_grocy_product(
                 entity.attributes.get("product_id"),
+                entity.attributes.get("qu_factor_purchase_to_stock"),
                 str(shopping_list_id),
                 note,
                 remove_product,
