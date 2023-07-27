@@ -41,5 +41,49 @@
         "error": {
             "invalid_api_url": "L'URL de Grocy n'est pas valide, veuillez utiliser une URL valide (http:// ou https:// avec un nom de domaine ou une adresse IP)"
         }
+    },
+    "services": {
+        "refresh_products": {
+            "name": "Rafraîchir  les produits",
+            "description": "Rafraîchir  les produits depuis Grocy."
+        },
+        "add_product": {
+            "name": "Ajouter un produit",
+            "description": "Ajouter un produit dans votre liste de courses Grocy.",
+            "fields": {
+                "product_id": {
+                    "name": "Product ID",
+                    "description": "Représente l'identifiant de votre produit que vous souhaitez ajouter."
+                },
+                "note": {
+                    "name": "Note",
+                    "description": "Note à ajouter avec votre produit."
+                }
+            }
+        },
+        "remove_product": {
+            "name": "Retirer un produit",
+            "description": "Retirer un produit de votre liste de courses Grocy.",
+            "fields": {
+                "product_id": {
+                    "name": "Product ID",
+                    "description": "Représente l'identifiant de votre produit que vous souhaitez supprimer."
+                }
+            }
+        },
+        "update_note": {
+            "name": "Mettre à jour la note",
+            "description": "Mise à jour de la note d'un produit dans votre liste de courses Grocy.",
+            "fields": {
+                "product_id": {
+                    "name": "Product ID",
+                    "description": "Représente l'identifiant de votre produit que vous souhaitez modifier."
+                },
+                "note": {
+                    "name": "Note",
+                    "description": "Note à mettre à jour pour votre produit."
+                }
+            }
+        }
     }
 }
