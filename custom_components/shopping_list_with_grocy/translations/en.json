@@ -7,11 +7,16 @@
                     "verify_ssl": "Verify SSL certificate",
                     "api_key": "Grocy - API Key",
                     "mqtt_server": "MQTT - IP address",
-                    "mqtt_port": "MQTT - Port",
+                    "mqtt_port": "MQTT - Port (1 to specify a custom port)",
                     "mqtt_username": "MQTT - Username",
                     "mqtt_password": "MQTT - Password",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
                     "adding_products_in_sensor": "Add all products in a sensor attribute?"
+                }
+            },
+            "mqtt_port": {
+                "data": {
+                    "mqtt_custom_port": "MQTT - Custom Port"
                 }
             }
         },
@@ -30,11 +35,16 @@
                     "verify_ssl": "Verify SSL certificate",
                     "api_key": "Grocy - API Key",
                     "mqtt_server": "MQTT - IP address",
-                    "mqtt_port": "MQTT - Port",
+                    "mqtt_port": "MQTT - Port (1 to specify a custom port)",
                     "mqtt_username": "MQTT - Username",
                     "mqtt_password": "MQTT - Password",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
                     "adding_products_in_sensor": "Add all products in a sensor attribute?"
+                }
+            },
+            "mqtt_port": {
+                "data": {
+                    "mqtt_custom_port": "MQTT - Custom Port"
                 }
             }
         },

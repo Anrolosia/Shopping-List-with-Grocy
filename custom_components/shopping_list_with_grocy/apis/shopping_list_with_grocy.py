@@ -30,6 +30,9 @@ class ShoppingListWithGrocyApi:
         self.api_key = config.get("api_key")
         self.mqtt_server = config.get("mqtt_server", "127.0.0.1")
         self.mqtt_port = config.get("mqtt_port", 1883)
+        self.mqtt_custom_port = config.get("mqtt_custom_port", 0)
+        if self.mqtt_port == 1 and self.mqtt_custom_port > 0:
+            self.mqtt_port = self.mqtt_custom_port
         self.mqtt_username = config.get("mqtt_username", None)
         self.mqtt_password = config.get("mqtt_password", None)
         self.image_size = config.get("image_download_size", 0)
