@@ -133,8 +133,8 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._errors = {}
 
         # Only a single instance of the integration is allowed:
-        # if self._async_current_entries():
-        #    return self.async_abort(reason="single_instance_allowed")
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
             if not is_valid_url(user_input["api_url"]):
