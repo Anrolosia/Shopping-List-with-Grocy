@@ -153,6 +153,32 @@ service: shopping_list_with_grocy.refresh_products
 data: {}
 ```
 
+#### Custom products UserFields
+
+In Grocy -> Manage master data -> Userfields, you can add custom fields on your products. You can now use that!
+
+For example, if you want to create a custom sort, create a custom field in Grocy:
+```yaml
+Entity: products
+Name: customsort
+Caption: Custom sort
+Type: Number(decimal)
+Show as column in tables: checked
+```
+
+then modify your dashboard to use that sort by replacing
+
+```yaml
+sort:
+  method: friendly_name
+```
+with
+```yaml
+sort:
+  method: attribute
+  attribute: userfields:customsort
+```
+
 #### Example of dashboard UI
 
 If you want to build the same example as on the screenshot above, this is an example of dashboard UI

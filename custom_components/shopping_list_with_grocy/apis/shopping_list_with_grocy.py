@@ -184,6 +184,9 @@ class ShoppingListWithGrocyApi:
         self.client.loop_start()
         for product in data["products"]:
             shopping_lists = {}
+            userfields = {}
+            if "userfields" in product:
+                userfields = product["userfields"]
             qty_in_shopping_lists = 0
             qty_in_stock = "0"
             picture = ""
@@ -273,6 +276,7 @@ class ShoppingListWithGrocyApi:
                     "topic": state_topic,
                     "location": location,
                     "group": group,
+                    "userfields": userfields,
                 }
                 for shop_list in shopping_lists:
                     prod_dict.update(
