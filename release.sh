@@ -7,8 +7,8 @@ if [ -n "$1" ]; then
         if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
         then
             # update the version in manifest.json
-            sed -i '' -E "s|\"version\": \".*\"|\"version\": \"${1#v}\"|" custom_components/trakt_tv/manifest.json
-            git add custom_components/trakt_tv/manifest.json
+            sed -i '' -E "s|\"version\": \".*\"|\"version\": \"${1#v}\"|" custom_components/shopping_list_with_grocy/manifest.json
+            git add custom_components/shopping_list_with_grocy/manifest.json
             git commit -m "chore(release): prepare for v$1"
             git tag "v$1"
             git push --atomic origin main "v$1"
