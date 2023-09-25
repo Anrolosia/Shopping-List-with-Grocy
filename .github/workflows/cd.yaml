@@ -1,4 +1,4 @@
-name: Trakt Integration Continuous Deployment
+name: Shopping List with Grocy Integration Continuous Deployment
 
 on:
   push:
@@ -15,9 +15,11 @@ jobs:
         shell: bash
         run: echo "RELEASE_VERSION=${GITHUB_REF:11}" >> $GITHUB_ENV
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
+          ref: 'main'
           fetch-depth: 0
+          fetch-tags: true
       - name: Create changes
         shell: bash
         run: touch CHANGES.md
