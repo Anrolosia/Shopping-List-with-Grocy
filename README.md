@@ -177,6 +177,7 @@ with
 sort:
   method: attribute
   attribute: userfields:customsort
+  numeric: true
 ```
 
 #### Example of dashboard UI
