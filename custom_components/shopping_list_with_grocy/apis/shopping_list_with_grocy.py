@@ -13,7 +13,7 @@ from async_timeout import timeout
 from dateutil.relativedelta import relativedelta
 from homeassistant.core import HomeAssistant
 
-from ..const import DOMAIN, MQTT_ENTITY_VERSION
+from ..const import DOMAIN, MQTT_ENTITY_VERSION, OTHER_FIELDS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -185,6 +185,7 @@ class ShoppingListWithGrocyApi:
         for product in data["products"]:
             shopping_lists = {}
             userfields = {}
+            otherfields = {}
             if "userfields" in product:
                 userfields = product["userfields"]
             qty_in_shopping_lists = 0
@@ -289,6 +290,10 @@ class ShoppingListWithGrocyApi:
                             shop_list + "_note": shopping_lists[shop_list].get("note"),
                         }
                     )
+                for field in OTHER_FIELDS:
+                    if field in product:
+                        prod_dict.update({field: product[field]})
+
                 prod_dict.update({"list_count": len(shopping_lists)})
                 self.update_object_in_mqtt(
                     state_topic,
