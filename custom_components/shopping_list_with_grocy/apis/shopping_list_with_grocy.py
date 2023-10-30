@@ -137,13 +137,22 @@ class ShoppingListWithGrocyApi:
         offset = 0
         new_results = True
         pages[path] = 0
-        while new_results:
-            response = await self.fetch_products(
-                path, self.pagination_limit * pages[path]
+        if path == "stock":
+            response = await self.request(
+                "get",
+                f"api/{path}",
+                "application/json",
             )
             new_results = await response.json()
             data.extend(new_results)
-            pages[path] += 1
+        else:
+            while new_results:
+                response = await self.fetch_products(
+                    path, self.pagination_limit * pages[path]
+                )
+                new_results = await response.json()
+                data.extend(new_results)
+                pages[path] += 1
 
         return data
 
@@ -190,11 +199,13 @@ class ShoppingListWithGrocyApi:
                 userfields = product["userfields"]
             qty_in_shopping_lists = 0
             qty_in_stock = "0"
+            aggregated_stock = "0"
             picture = ""
             location = ""
             group = ""
             product_name = product["name"]
             product_id = product["id"]
+            parent_product_id = product["parent_product_id"]
             product_picture = product["picture_file_name"]
             product_location = product["location_id"]
             product_group = product["product_group_id"]
@@ -251,10 +262,18 @@ class ShoppingListWithGrocyApi:
                     qty_in_shopping_lists += int(in_shop_list)
 
             stock_qty = 0
+            aggregated_qty = 0
             for in_stock in data["stock"]:
-                if product_id == in_stock["product_id"]:
+                if (
+                    product_id == in_stock["product_id"]
+                    and "amount_aggregated" in in_stock
+                ):
+                    LOGGER.warning("product_id: %s", product_id)
+                    LOGGER.warning("in_stock: %s", in_stock)
                     stock_qty += int(in_stock["amount"])
+                    aggregated_qty += float(in_stock["amount_aggregated"])
             qty_in_stock = str(stock_qty)
+            aggregated_stock = str(aggregated_qty)
 
             if product_location is not None and product_location != "null":
                 for locations in data["locations"]:
@@ -271,7 +290,9 @@ class ShoppingListWithGrocyApi:
             if entity is None or entity.last_updated <= self.current_time:
                 prod_dict = {
                     "product_id": product_id,
+                    "parent_product_id": parent_product_id,
                     "qty_in_stock": qty_in_stock,
+                    "aggregated_stock": aggregated_stock,
                     "qu_factor_purchase_to_stock": str(qty_factor),
                     "product_image": picture,
                     "topic": state_topic,
