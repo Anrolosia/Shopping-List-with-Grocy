@@ -268,8 +268,6 @@ class ShoppingListWithGrocyApi:
                     product_id == in_stock["product_id"]
                     and "amount_aggregated" in in_stock
                 ):
-                    LOGGER.warning("product_id: %s", product_id)
-                    LOGGER.warning("in_stock: %s", in_stock)
                     stock_qty += int(in_stock["amount"])
                     aggregated_qty += float(in_stock["amount_aggregated"])
             qty_in_stock = str(stock_qty)
