@@ -221,6 +221,14 @@ class ShoppingListWithGrocyApi:
                 + str(product_id)
             )
 
+            qty_unit_purchase = ""
+            qty_unit_stock = ""
+            for quantity_unit in data["quantity_units"]:
+                if product["qu_id_purchase"] == quantity_unit["id"]:
+                    qty_unit_purchase = quantity_unit["name"]
+                if product["qu_id_stock"] == quantity_unit["id"]:
+                    qty_unit_stock = quantity_unit["name"]
+
             config_topic = self.config_topic + object_id + "/config"
             state_topic = self.state_topic + object_id + "/state"
             attributes_topic = self.state_topic + object_id + "/attributes"
@@ -290,6 +298,8 @@ class ShoppingListWithGrocyApi:
                     "product_id": product_id,
                     "parent_product_id": parent_product_id,
                     "qty_in_stock": qty_in_stock,
+                    "qty_unit_purchase": qty_unit_purchase,
+                    "qty_unit_stock": qty_unit_stock,
                     "aggregated_stock": aggregated_stock,
                     "qu_factor_purchase_to_stock": str(qty_factor),
                     "product_image": picture,
@@ -584,6 +594,7 @@ class ShoppingListWithGrocyApi:
                     "locations",
                     "stock",
                     "product_groups",
+                    "quantity_units",
                 ]
                 data = await gather(*[self.fetch_list(path) for path in titles])
                 self.final_data = {
