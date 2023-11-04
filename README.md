@@ -180,6 +180,12 @@ sort:
   numeric: true
 ```
 
+## Known issues / FAQ 💡
+
+#### binary_sensor.updating_shopping_list_with_grocy is not created
+
+There is probably an issue with your MQTT configuration, you have to create a user, MQTT no longer allows anonymous connections, please check [this link](https://github.com/Anrolosia/Shopping-List-with-Grocy/issues/29#issuecomment-1782905325)
+
 #### Example of dashboard UI
 
 If you want to build the same example as on the screenshot above, this is an example of dashboard UI
