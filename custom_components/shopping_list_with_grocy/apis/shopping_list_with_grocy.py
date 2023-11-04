@@ -271,6 +271,8 @@ class ShoppingListWithGrocyApi:
 
             stock_qty = 0
             aggregated_qty = 0
+            opened_qty = 0
+            opened_aggregated_qty = 0
             for in_stock in data["stock"]:
                 if (
                     product_id == in_stock["product_id"]
@@ -278,6 +280,12 @@ class ShoppingListWithGrocyApi:
                 ):
                     stock_qty += int(in_stock["amount"])
                     aggregated_qty += float(in_stock["amount_aggregated"])
+                if (
+                    product_id == in_stock["product_id"]
+                    and "amount_opened_aggregated" in in_stock
+                ):
+                    opened_qty += int(in_stock["amount_opened"])
+                    opened_aggregated_qty += float(in_stock["amount_opened_aggregated"])
             qty_in_stock = str(stock_qty)
             aggregated_stock = str(aggregated_qty)
 
@@ -298,9 +306,11 @@ class ShoppingListWithGrocyApi:
                     "product_id": product_id,
                     "parent_product_id": parent_product_id,
                     "qty_in_stock": qty_in_stock,
+                    "qty_opened": opened_qty,
                     "qty_unit_purchase": qty_unit_purchase,
                     "qty_unit_stock": qty_unit_stock,
                     "aggregated_stock": aggregated_stock,
+                    "aggregated_opened": opened_aggregated_qty,
                     "qu_factor_purchase_to_stock": str(qty_factor),
                     "product_image": picture,
                     "topic": state_topic,
