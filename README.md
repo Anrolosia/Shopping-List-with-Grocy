@@ -89,7 +89,7 @@ then use your HA address like this: https://192.168.1.1:9192 and uncheck the Ver
 
 <img src="https://raw.githubusercontent.com/Anrolosia/Shopping-List-with-Grocy/main/images/grocy_addon_ssl.png" alt="Grocy add-on SSL" />
 
-#### Available Sensors
+## Available Sensors
 
 This integration will create as much sensors as you have products configured in your Grocy instance, but will also create 3 other sensors:
 
@@ -107,14 +107,14 @@ If you checked the option during the configuration of the module to include more
 
 This sensor (``binary_sensor.updating_shopping_list_with_grocy``) show current status of list update.
 
-#### Available Switch
+## Available Switch
 
 ##### Pause update
 
 This switch (``switch.pause_update_shopping_list_with_grocy``) will prevent any updates from your Grocy instance to your Home Assistant.
 It could be useful if you want to update several products at once or run a long script.
 
-#### Available Services
+## Available Services
 
 This integration provides 4 services
 
@@ -185,6 +185,8 @@ sort:
 #### binary_sensor.updating_shopping_list_with_grocy is not created
 
 There is probably an issue with your MQTT configuration, you have to create a user, MQTT no longer allows anonymous connections, please check [this link](https://github.com/Anrolosia/Shopping-List-with-Grocy/issues/29#issuecomment-1782905325)
+
+## Examples
 
 #### Example of dashboard UI
 
