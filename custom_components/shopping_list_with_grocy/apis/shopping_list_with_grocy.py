@@ -202,12 +202,14 @@ class ShoppingListWithGrocyApi:
             aggregated_stock = "0"
             picture = ""
             location = ""
+            consume_location = ""
             group = ""
             product_name = product["name"]
             product_id = product["id"]
             parent_product_id = product["parent_product_id"]
             product_picture = product["picture_file_name"]
             product_location = product["location_id"]
+            default_consume_location = product["default_consume_location_id"]
             product_group = product["product_group_id"]
             qty_factor = 1.0
             if "qu_factor_purchase_to_stock" in product and (
@@ -293,6 +295,13 @@ class ShoppingListWithGrocyApi:
                 for locations in data["locations"]:
                     if product_location == locations["id"]:
                         location = locations["name"]
+            if (
+                default_consume_location is not None
+                and default_consume_location != "null"
+            ):
+                for locations in data["locations"]:
+                    if default_consume_location == locations["id"]:
+                        consume_location = locations["name"]
 
             if product_group is not None and product_group != "null":
                 for groups in data["product_groups"]:
@@ -315,6 +324,7 @@ class ShoppingListWithGrocyApi:
                     "product_image": picture,
                     "topic": state_topic,
                     "location": location,
+                    "consume_location": consume_location,
                     "group": group,
                     "userfields": userfields,
                 }
