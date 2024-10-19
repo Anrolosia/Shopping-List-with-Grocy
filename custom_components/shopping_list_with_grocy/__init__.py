@@ -66,10 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    for platform in PLATFORMS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, platform)
-        )
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async_setup_services(hass)
 
