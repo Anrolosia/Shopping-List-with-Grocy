@@ -101,11 +101,7 @@ class ShoppingListSensor(Entity):
     @property
     def extra_state_attributes(self):
         """Return the state attributes of the sensor."""
-        return (
-            {"data": self.data}
-            if self.config.get("adding_products_in_sensor", False)
-            else []
-        )
+        return {"data": self.data}
 
     async def async_update(self):
         """Request coordinator to update data."""
