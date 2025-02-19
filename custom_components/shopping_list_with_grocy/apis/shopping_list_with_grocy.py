@@ -41,10 +41,8 @@ class ShoppingListWithGrocyApi:
         self.config_topic = "homeassistant/sensor/"
         self.state_topic = "shopping-list-with-grocy/products/"
         self.current_time = datetime.now(timezone.utc)
-        self.client = mqtt.Client(client_id="ha-client", protocol=mqtt.MQTTv311)
-        self.client.enable_logger()
+        self.client = mqtt.Client(client_id="ha-client")
         self.client.on_connect = self.on_connect
-        self.client.on_log = self.on_log
         if self.mqtt_username is not None and self.mqtt_password is not None:
             self.client.username_pw_set(self.mqtt_username, self.mqtt_password)
         self.last_db_changed_time = None
@@ -72,23 +70,11 @@ class ShoppingListWithGrocyApi:
             return obj.isoformat()
         raise TypeError("Type not serializable")
 
-    def on_log(client, userdata, paho_log_level, message):
-        if paho_log_level == mqtt.LogLevel.MQTT_LOG_ERR:
-            LOGGER.error(message)
-        elif paho_log_level == mqtt.LogLevel.MQTT_LOG_WARNING:
-            LOGGER.warning(message)
-        elif paho_log_level == mqtt.LogLevel.MQTT_LOG_NOTICE:
-            LOGGER.info(message)
-        elif paho_log_level == mqtt.LogLevel.MQTT_LOG_INFO:
-            LOGGER.info(message)
+    def on_connect(self, client, userdata, flags, rc):
+        if rc == 0:
+            LOGGER.debug("Connected to MQTT Broker!")
         else:
-            LOGGER.debug(message)
-
-    def on_connect(userdata, client, properties, flags, reason_code):
-        if reason_code == 0:
-            LOGGER.debug(f"Connected with result code {reason_code}.")
-        else:
-            LOGGER.error(f"Failed to connect: {reason_code}.")
+            LOGGER.error("Failed to connect, return code %d\n", rc)
 
     async def request(
         self, method, url, accept, payload={}, **kwargs
