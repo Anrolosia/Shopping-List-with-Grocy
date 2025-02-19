@@ -41,7 +41,7 @@ class ShoppingListWithGrocyApi:
         self.config_topic = "homeassistant/sensor/"
         self.state_topic = "shopping-list-with-grocy/products/"
         self.current_time = datetime.now(timezone.utc)
-        self.client = mqtt.Client("ha-client")
+        self.client = mqtt.Client(client_id="ha-client", protocol=mqtt.MQTTv311)
         self.client.enable_logger()
         self.client.on_connect = self.on_connect
         self.client.on_log = self.on_log
@@ -84,7 +84,7 @@ class ShoppingListWithGrocyApi:
         else:
             LOGGER.debug(message)
 
-    def on_connect(client, userdata, flags, reason_code, properties):
+    def on_connect(userdata, client, properties, flags, reason_code):
         if reason_code == 0:
             LOGGER.debug(f"Connected with result code {reason_code}.")
         else:
@@ -186,8 +186,6 @@ class ShoppingListWithGrocyApi:
         config_topic = self.config_topic + entity_id + "/config"
         state_topic = self.state_topic + entity_id + "/state"
         attributes_topic = self.state_topic + entity_id + "/attributes"
-        self.client.connect(self.mqtt_server, self.mqtt_port)
-        self.client.loop_start()
         self.update_object_in_mqtt(
             config_topic,
             "",
@@ -200,8 +198,6 @@ class ShoppingListWithGrocyApi:
             attributes_topic,
             "",
         )
-        self.client.disconnect()
-        self.client.loop_stop()
 
     async def parse_products(self, data):
         self.current_time = datetime.now(timezone.utc)
@@ -210,8 +206,6 @@ class ShoppingListWithGrocyApi:
         rex = re.compile("sensor.shopping_list_with_grocy_[^|]+")
         self.ha_products = rex.findall(r"(?=(" + "|".join(entities) + r"))")
 
-        self.client.connect(self.mqtt_server, self.mqtt_port)
-        self.client.loop_start()
         for product in data["products"]:
             shopping_lists = {}
             userfields = {}
@@ -404,9 +398,6 @@ class ShoppingListWithGrocyApi:
                     json.dumps(prod_dict_config),
                 )
 
-        self.client.disconnect()
-        self.client.loop_stop()
-
         if len(self.ha_products) > 0:
             for product in self.ha_products:
                 await self.remove_product(product)
@@ -541,8 +532,6 @@ class ShoppingListWithGrocyApi:
         availability_topic = topic + "/availability"
         entity = self.get_entity_in_hass("binary_sensor." + object_id)
 
-        self.client.connect(self.mqtt_server, self.mqtt_port)
-        self.client.loop_start()
         if entity is None:
             prod_dict_config = {
                 "name": "ShoppingListWithGrocy Update in progress",
@@ -573,8 +562,6 @@ class ShoppingListWithGrocyApi:
             state_topic,
             refreshing,
         )
-        self.client.disconnect()
-        self.client.loop_stop()
 
     async def is_update_paused(self):
         object_id = "pause_update_shopping_list_with_grocy"
@@ -638,6 +625,9 @@ class ShoppingListWithGrocyApi:
 
         async with timeout(60):
             if force or (update_data and not is_update_paused):
+                self.client.connect(self.mqtt_server, self.mqtt_port)
+                self.client.loop_start()
+
                 await self.update_refreshing_status("ON")
                 titles = [
                     "products",
@@ -654,5 +644,8 @@ class ShoppingListWithGrocyApi:
                 await self.parse_products(self.final_data)
                 await self.update_refreshing_status("OFF")
                 return self.final_data
+
+                self.client.disconnect()
+                self.client.loop_stop()
             else:
                 return self.final_data
