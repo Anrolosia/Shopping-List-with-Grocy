@@ -42,6 +42,9 @@ class ShoppingListWithGrocyApi:
         self.state_topic = "shopping-list-with-grocy/products/"
         self.current_time = datetime.now(timezone.utc)
         self.client = mqtt.Client("ha-client")
+        self.client.enable_logger()
+        self.client.on_connect = self.on_connect
+        self.client.on_log = self.on_log
         if self.mqtt_username is not None and self.mqtt_password is not None:
             self.client.username_pw_set(self.mqtt_username, self.mqtt_password)
         self.last_db_changed_time = None
@@ -68,6 +71,24 @@ class ShoppingListWithGrocyApi:
         if isinstance(obj, datetime):
             return obj.isoformat()
         raise TypeError("Type not serializable")
+
+    def on_log(client, userdata, paho_log_level, message):
+        if paho_log_level == mqtt.LogLevel.MQTT_LOG_ERR:
+            LOGGER.error(message)
+        elif paho_log_level == mqtt.LogLevel.MQTT_LOG_WARNING:
+            LOGGER.warning(message)
+        elif paho_log_level == mqtt.LogLevel.MQTT_LOG_NOTICE:
+            LOGGER.info(message)
+        elif paho_log_level == mqtt.LogLevel.MQTT_LOG_INFO:
+            LOGGER.info(message)
+        else:
+            LOGGER.debug(message)
+
+    def on_connect(client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
+            LOGGER.debug(f"Connected with result code {reason_code}.")
+        else:
+            LOGGER.error(f"Failed to connect: {reason_code}.")
 
     async def request(
         self, method, url, accept, payload={}, **kwargs
@@ -179,8 +200,8 @@ class ShoppingListWithGrocyApi:
             attributes_topic,
             "",
         )
-        self.client.loop_stop()
         self.client.disconnect()
+        self.client.loop_stop()
 
     async def parse_products(self, data):
         self.current_time = datetime.now(timezone.utc)
@@ -383,8 +404,8 @@ class ShoppingListWithGrocyApi:
                     json.dumps(prod_dict_config),
                 )
 
-        self.client.loop_stop()
         self.client.disconnect()
+        self.client.loop_stop()
 
         if len(self.ha_products) > 0:
             for product in self.ha_products:
@@ -480,8 +501,8 @@ class ShoppingListWithGrocyApi:
                 entity_attributes.get("topic"),
                 total_qty,
             )
-            self.client.loop_stop()
             self.client.disconnect()
+            self.client.loop_stop()
 
     async def update_note(self, product_id, shopping_list_id, note):
         LOGGER.debug("update_note, product_id: %s", product_id)
@@ -510,8 +531,8 @@ class ShoppingListWithGrocyApi:
                 entity_attributes.get("topic").replace("state", "attributes"),
                 json.dumps(entity_attributes),
             )
-            self.client.loop_stop()
             self.client.disconnect()
+            self.client.loop_stop()
 
     async def update_refreshing_status(self, refreshing):
         object_id = "updating_shopping_list_with_grocy"
@@ -552,8 +573,8 @@ class ShoppingListWithGrocyApi:
             state_topic,
             refreshing,
         )
-        self.client.loop_stop()
         self.client.disconnect()
+        self.client.loop_stop()
 
     async def is_update_paused(self):
         object_id = "pause_update_shopping_list_with_grocy"
@@ -598,8 +619,8 @@ class ShoppingListWithGrocyApi:
                 state_topic,
                 "OFF",
             )
-            self.client.loop_stop()
             self.client.disconnect()
+            self.client.loop_stop()
             return False
 
         return entity.state == "on"
