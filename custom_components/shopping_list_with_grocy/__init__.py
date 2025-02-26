@@ -9,10 +9,10 @@ from homeassistant.const import (
     ATTR_NAME,
     CONF_NAME,
     EVENT_HOMEASSISTANT_STARTED,
+    Platform,
 )
 from homeassistant.core import CoreState, HomeAssistant, asyncio, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_time,
@@ -22,6 +22,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
 from .const import DOMAIN, STATE_INIT
+from .coordinator import ShoppingListWithGrocyCoordinator
 from .schema import configuration_schema
 from .services import async_setup_services, async_unload_services
 from .utils import update_domain_data
@@ -29,7 +30,7 @@ from .utils import update_domain_data
 LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = configuration_schema
-PLATFORMS = ["sensor"]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.TODO]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=30)
 
@@ -163,37 +164,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             async_unload_services(hass)
 
     return unload_ok
-
-
-class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
-    """Define an object to hold shopping list with grocy data."""
-
-    def __init__(self, hass, session, entry, api):
-        """Initialize."""
-        self.hass = hass
-        self.state = STATE_INIT
-        self.config = entry.data
-        self.name = self.config.get(CONF_NAME)
-        self.api = api
-        self._shopping_list_with_grocy_tracker = None
-
-        super().__init__(
-            hass, LOGGER, name=self.name, update_interval=timedelta(seconds=30)
-        )
-
-    async def _async_update_data(self):
-        async with timeout(60):
-            return await self.api.retrieve_data()
-
-    async def request_update(self):
-        async with timeout(60):
-            return await self.api.retrieve_data(True)
-
-    async def add_product(self, product_id, shopping_list_id, note):
-        await self.api.manage_product(product_id, shopping_list_id, note)
-
-    async def remove_product(self, product_id, shopping_list_id):
-        await self.api.manage_product(product_id, shopping_list_id, "", True)
-
-    async def update_note(self, product_id, shopping_list_id, note):
-        await self.api.update_note(product_id, shopping_list_id, note)

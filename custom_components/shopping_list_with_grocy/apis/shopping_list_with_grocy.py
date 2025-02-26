@@ -11,6 +11,9 @@ import paho.mqtt.publish as publish
 from aiohttp import ClientResponse, ClientSession
 from async_timeout import timeout
 from dateutil.relativedelta import relativedelta
+from homeassistant.components.todo import (
+    TodoItemStatus,
+)
 from homeassistant.core import HomeAssistant
 
 from ..const import DOMAIN, MQTT_ENTITY_VERSION, OTHER_FIELDS
@@ -75,6 +78,66 @@ class ShoppingListWithGrocyApi:
             LOGGER.debug("Connected to MQTT Broker!")
         else:
             LOGGER.error("Failed to connect, return code %d\n", rc)
+
+    def build_item_list(self, data) -> list:
+        shopping_lists = []
+        if data is not None:
+            for product in data["products"]:
+                product_id = product["id"]
+                for in_shopping_list in data["shopping_list"]:
+                    if product_id == in_shopping_list["product_id"]:
+                        shopping_list_id = in_shopping_list["shopping_list_id"]
+                        if not any(
+                            shopping_list["id"] == shopping_list_id
+                            for shopping_list in shopping_lists
+                        ):
+                            shopping_list = next(
+                                (
+                                    item
+                                    for item in data["shopping_lists"]
+                                    if item["id"] == shopping_list_id
+                                ),
+                                None,
+                            )
+                            shopping_lists.append(
+                                {
+                                    "id": shopping_list_id,
+                                    "name": shopping_list["name"],
+                                    "products": [],
+                                }
+                            )
+
+                        qty_factor = 1.0
+                        if "qu_factor_purchase_to_stock" in product and (
+                            product["qu_id_purchase"] != product["qu_id_stock"]
+                        ):
+                            qty_factor = float(product["qu_factor_purchase_to_stock"])
+                        in_shop_list = in_shopping_list["amount"]
+                        in_shop_list = str(round(int(in_shop_list) / qty_factor))
+
+                        shop_list_id = in_shopping_list["id"]
+
+                        shopping_list = next(
+                            (
+                                shopping_list
+                                for shopping_list in shopping_lists
+                                if shopping_list["id"] == shopping_list_id
+                            ),
+                            None,
+                        )
+                        shopping_list["products"].append(
+                            {
+                                "name": f"{product['name']} (x{in_shop_list})",
+                                "shop_list_id": shop_list_id,
+                                "status": (
+                                    TodoItemStatus.NEEDS_ACTION
+                                    if in_shopping_list["done"] == "0"
+                                    else TodoItemStatus.COMPLETED
+                                ),
+                            }
+                        )
+
+        return shopping_lists
 
     async def request(
         self, method, url, accept, payload={}, **kwargs
@@ -388,6 +451,27 @@ class ShoppingListWithGrocyApi:
             for product in self.ha_products:
                 await self.remove_product(product)
 
+    async def update_grocy_shoppinglist_product(self, product_id, done):
+        payload = {
+            "done": done,
+        }
+
+        return await self.request(
+            "put",
+            f"api/objects/shopping_list/{int(product_id)}",
+            "*/*",
+            json.dumps(payload),
+        )
+
+    async def remove_product_from_shopping_list(self, product_id):
+
+        return await self.request(
+            "delete",
+            f"api/objects/shopping_list/{int(product_id)}",
+            "*/*",
+            json.dumps({}),
+        )
+
     async def update_grocy_product(
         self,
         product_id,
@@ -420,7 +504,6 @@ class ShoppingListWithGrocyApi:
     async def manage_product(
         self, product_id, shopping_list_id=1, note="", remove_product=False
     ):
-        LOGGER.debug("manage_product, product_id: %s", product_id)
         entity = self.get_entity_in_hass(product_id)
         if entity is not None:
             total_qty = int(entity.state) + 1
@@ -617,6 +700,7 @@ class ShoppingListWithGrocyApi:
                 await self.update_refreshing_status("ON")
                 titles = [
                     "products",
+                    "shopping_lists",
                     "shopping_list",
                     "locations",
                     "stock",
