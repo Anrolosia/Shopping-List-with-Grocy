@@ -21,6 +21,8 @@
 
 <p align="center">
   Integrate and interact with your <a href="https://grocy.info/">Grocy</a> shopping list directly from your Home Assistant dashboard.
+
+  It's also integrated with native Home Assistant TODO Lists: You can mark an shopping list item as done, and even delete all done items!
 </p>
 
 <p align="center">
