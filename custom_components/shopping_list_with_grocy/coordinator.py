@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from async_timeout import timeout
 from homeassistant.const import CONF_NAME
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, STATE_INIT
@@ -21,7 +22,13 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.api = api
         self.last_successful_fetch = None
-        self._data = {}  # Ensure data is initialized properly
+        self.data = hass.data.setdefault(DOMAIN, {}).setdefault("products", {})
+        self._parsed_data = (
+            self.data["homeassistant_products"]
+            if "homeassistant_products" in self.data
+            else []
+        )
+        self.entities = []
         super().__init__(
             hass,
             LOGGER,
@@ -31,33 +38,33 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         await self.retrieve_data()
-        return self._data
+        return self.data
 
     async def add_product(self, product_id, shopping_list_id, note):
-        """Add a product to the shopping list."""
         return await self.api.manage_product(product_id, shopping_list_id, note)
 
     async def remove_product(self, product_id, shopping_list_id):
-        """Remove a product from the shopping list."""
         return await self.api.manage_product(product_id, shopping_list_id, "", True)
 
     async def update_note(self, product_id, shopping_list_id, note):
-        """Update the note for a product in the shopping list."""
         return await self.api.update_note(product_id, shopping_list_id, note)
 
     async def request_update(self):
-        """Force an update of the shopping list."""
         await self.retrieve_data(True)
-        return self._data
+        return self.data
 
     async def retrieve_data(self, force=False):
-        """Fetch data from API with retries and error handling."""
         try:
             async with timeout(60):
                 data = await self.api.retrieve_data(force)
                 if data is not None:
                     self.last_successful_fetch = self.hass.loop.time()
-                    self._data = data  # Ensure data is always updated
+                    self.data = data  # Ensure data is always updated
+                    self._parsed_data = (
+                        data["homeassistant_products"]
+                        if "homeassistant_products" in data
+                        else []
+                    )
                 else:
                     LOGGER.warning("Received empty or invalid data from API.")
         except asyncio.TimeoutError:

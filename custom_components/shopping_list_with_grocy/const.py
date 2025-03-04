@@ -2,7 +2,7 @@
 
 DOMAIN = "shopping_list_with_grocy"
 
-MQTT_ENTITY_VERSION = 1
+ENTITY_VERSION = 2
 
 STATE_INIT = "init"
 STATE_READY = "ready"

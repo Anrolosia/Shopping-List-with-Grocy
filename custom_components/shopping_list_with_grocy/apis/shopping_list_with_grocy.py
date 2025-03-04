@@ -10,16 +10,15 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import aiohttp
-import paho.mqtt.client as mqtt
-import paho.mqtt.publish as publish
 from async_timeout import timeout
 from dateutil.relativedelta import relativedelta
 from homeassistant.components.todo import (
     TodoItemStatus,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from ..const import DOMAIN, MQTT_ENTITY_VERSION, OTHER_FIELDS
+from ..const import DOMAIN, ENTITY_VERSION, OTHER_FIELDS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,35 +35,15 @@ class ShoppingListWithGrocyApi:
         self.verify_ssl = config.get("verify_ssl", True)
         self.api_key = config.get("api_key")
 
-        # Configuration MQTT
-        self.mqtt_server = config.get("mqtt_server", "127.0.0.1")
-        self.mqtt_port = config.get("mqtt_custom_port", config.get("mqtt_port", 1883))
-        self.mqtt_username = config.get("mqtt_username") or None
-        self.mqtt_password = config.get("mqtt_password") or None
-
         # Image and data management
         self.image_size = config.get("image_download_size", 0)
         self.ha_products = []
         self.final_data = []
         self.pagination_limit = 40
 
-        # Topics MQTT
-        self.config_topic = "homeassistant/sensor/shopping_list_with_grocy/"
-        self.state_topic = "shopping-list-with-grocy/products/"
-
         # Time management
         self.current_time = datetime.now(timezone.utc)
         self.last_db_changed_time = None
-
-        # MQTT Initialization
-        self.mqtt_lock = (
-            asyncio.Lock()
-        )  # Ajout d'un verrou pour éviter les accès concurrents
-        self.client = mqtt.Client(client_id="ha-client")
-        self.client.on_connect = self.on_connect
-
-        if self.mqtt_username and self.mqtt_password:
-            self.client.username_pw_set(self.mqtt_username, self.mqtt_password)
 
     def get_entity_in_hass(self, entity_id):
         """Retrieve an entity from Home Assistant."""
@@ -81,74 +60,6 @@ class ShoppingListWithGrocyApi:
             )
         return base64.b64encode(message.encode()).decode()
 
-    @asynccontextmanager
-    async def mqtt_session(self):
-        """Centralized MQTT connection management with detailed logs."""
-        LOGGER.debug(
-            "🟢 Connecting to MQTT server: %s:%s", self.mqtt_server, self.mqtt_port
-        )
-
-        try:
-            self.client.connect(self.mqtt_server, self.mqtt_port)
-            self.client.loop_start()
-            yield
-        finally:
-            LOGGER.debug("🔴 Disconnecting from MQTT server")
-            self.client.disconnect()
-            self.client.loop_stop()
-
-    async def create_mqtt_sensor(
-        self, object_id, product_name, state_topic, attributes_topic
-    ):
-        """Creates a MQTT sensor that is properly integrated with Home Assistant"""
-        discovery_topic = f"{self.config_topic}{object_id}/config"
-
-        sensor_config = {
-            "name": product_name,
-            "state_topic": state_topic,
-            "json_attributes_topic": attributes_topic,
-            "json_attributes_template": "{{ value_json | tojson }}",
-            "icon": "mdi:cart",
-            "unique_id": f"shopping_list_with_grocy_{object_id}",
-            "object_id": object_id,
-            "unit_of_measurement": "pcs",
-        }
-
-        LOGGER.debug(
-            "🟢 Création du sensor MQTT : %s", json.dumps(sensor_config, indent=2)
-        )
-
-        await self.mqtt_publish(discovery_topic, json.dumps(sensor_config))
-
-    async def update_object_in_mqtt(self, topic, subject):
-        """Secure MQTT publishing with `retain=True`, ensuring connection before publishing."""
-        if not topic or subject is None:
-            LOGGER.error(
-                "❌ MQTT publish failed: topic is empty or subject is None. Topic: %s, Subject: %s",
-                subject,
-            )
-            return
-
-        # Checks if MQTT session is available
-        session = self.mqtt_session()
-        if session is None:
-            LOGGER.error(
-                "❌ MQTT publish failed: MQTT session is None. Topic: %s", topic
-            )
-            return
-
-        async with self.mqtt_lock:  # Prevents multiple simultaneous posts
-            try:
-                async with session:  # Handles MQTT session properly
-                    LOGGER.debug(
-                        "✅ Publishing to MQTT topic: %s, Payload: %s", topic, subject
-                    )
-                    self.client.publish(
-                        topic, subject if subject else "", qos=0, retain=True
-                    )
-            except Exception as e:
-                LOGGER.error("⚠️ MQTT publish error: %s", str(e))
-
     def serialize_datetime(self, obj):
         """Serialize a datetime or date object to ISO format."""
         if isinstance(obj, (datetime, date)):
@@ -157,24 +68,6 @@ class ShoppingListWithGrocyApi:
             "serialize_datetime expects a datetime or date object, got %s"
             % type(obj).__name__
         )
-
-    def on_connect(self, client, userdata, flags, rc):
-        """Handle MQTT connection events."""
-        mqtt_errors = {
-            0: "Connection successful",
-            1: "Connection refused – incorrect protocol version",
-            2: "Connection refused – invalid client identifier",
-            3: "Connection refused – server unavailable",
-            4: "Connection refused – bad username or password",
-            5: "Connection refused – not authorized",
-        }
-        if rc == 0:
-            LOGGER.debug("Connected to MQTT Broker!")
-        else:
-            LOGGER.error(
-                "Failed to connect to MQTT Broker: %s",
-                mqtt_errors.get(rc, "Unknown error"),
-            )
 
     def build_item_list(self, data) -> list:
         if data is None or "shopping_lists" not in data:
@@ -311,25 +204,14 @@ class ShoppingListWithGrocyApi:
         return data
 
     async def remove_product(self, product):
-        """Remove a product by clearing its MQTT topics."""
         if product.endswith("))"):
             product = product[:-2]
 
-        entity_id = product.removeprefix("sensor.")
-        LOGGER.debug("Product %s not found on Grocy, deleting it...", entity_id)
-
-        base_topic = f"{self.state_topic}{entity_id}"
-        topics = [
-            f"{self.config_topic}{entity_id}/config",
-            f"{base_topic}/state",
-            f"{base_topic}/attributes",
-        ]
-
-        for topic in topics:
-            await self.update_object_in_mqtt(topic, "")
+        async_dispatcher_send(
+            self.hass, "shopping_list_with_grocy_remove_sensor", product.split("_")[-1]
+        )
 
     async def parse_products(self, data):
-        """Parse products data and update MQTT topics."""
         self.current_time = datetime.now(timezone.utc)
 
         # Optimizing Home Assistant entity search
@@ -358,11 +240,10 @@ class ShoppingListWithGrocyApi:
 
         self.ha_products -= to_remove
 
+        parsed_products = []
         for product in data["products"]:
             product_id = product["id"]
-            object_id = (
-                f"shopping_list_with_grocy_product_v{MQTT_ENTITY_VERSION}_{product_id}"
-            )
+            object_id = f"{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
             entity = f"sensor.{object_id}"
 
             # Retrieving product fields
@@ -392,11 +273,6 @@ class ShoppingListWithGrocyApi:
                 )
                 picture_bytes = await picture_response.read()
                 picture = base64.b64encode(picture_bytes).decode("utf-8")
-
-            # Building MQTT topics
-            config_topic = f"{self.config_topic}{object_id}/config"
-            state_topic = f"{self.state_topic}{object_id}/state"
-            attributes_topic = f"{self.state_topic}{object_id}/attributes"
 
             # Initialization of shopping lists and quantities
             shopping_lists = {}
@@ -441,86 +317,59 @@ class ShoppingListWithGrocyApi:
             unopened_qty = max(0, stock_qty - opened_qty)
             unopened_aggregated_qty = max(0, aggregated_qty - opened_aggregated_qty)
 
-            # Recovering the existing entity
-            entity_state = self.get_entity_in_hass(entity)
+            prod_dict = {
+                "product_id": product_id,
+                "parent_product_id": product.get("parent_product_id"),
+                "qty_in_stock": str(stock_qty),
+                "qty_opened": opened_qty,
+                "qty_unopened": unopened_qty,
+                "qty_unit_purchase": qty_unit_purchase,
+                "qty_unit_stock": qty_unit_stock,
+                "aggregated_stock": str(aggregated_qty),
+                "aggregated_opened": opened_aggregated_qty,
+                "aggregated_unopened": unopened_aggregated_qty,
+                "qu_factor_purchase_to_stock": str(qty_factor),
+                "product_image": picture,
+                "location": location,
+                "consume_location": consume_location,
+                "group": group,
+                "userfields": userfields,
+                "list_count": len(shopping_lists),
+            }
 
-            # Checking if the entity needs to be updated
-            if entity_state is None or entity_state.last_updated <= self.current_time:
-                prod_dict = {
-                    "product_id": product_id,
-                    "parent_product_id": product.get("parent_product_id"),
-                    "qty_in_stock": str(stock_qty),
-                    "qty_opened": opened_qty,
-                    "qty_unopened": unopened_qty,
-                    "qty_unit_purchase": qty_unit_purchase,
-                    "qty_unit_stock": qty_unit_stock,
-                    "aggregated_stock": str(aggregated_qty),
-                    "aggregated_opened": opened_aggregated_qty,
-                    "aggregated_unopened": unopened_aggregated_qty,
-                    "qu_factor_purchase_to_stock": str(qty_factor),
-                    "product_image": picture,
-                    "topic": state_topic,
-                    "location": location,
-                    "consume_location": consume_location,
-                    "group": group,
-                    "userfields": userfields,
-                    "list_count": len(shopping_lists),
-                }
-
-                # Added shopping_list information
-                for shop_list, details in shopping_lists.items():
-                    prod_dict.update(
-                        {
-                            f"{shop_list}_qty": details["qty"],
-                            f"{shop_list}_shop_list_id": details["shop_list_id"],
-                            f"{shop_list}_note": details["note"],
-                        }
-                    )
-
-                # Adding other fields
-                for field in OTHER_FIELDS:
-                    if field in product:
-                        prod_dict[field] = product[field]
-
-                # MQTT Status Update
-                LOGGER.debug(
-                    "🟢 Mise à jour de l'état MQTT - Object ID: %s, State Topic: %s, Attributes Topic: %s",
-                    object_id,
-                    state_topic,
-                    attributes_topic,
+            # Added shopping_list information
+            for shop_list, details in shopping_lists.items():
+                prod_dict.update(
+                    {
+                        f"{shop_list}_qty": details["qty"],
+                        f"{shop_list}_shop_list_id": details["shop_list_id"],
+                        f"{shop_list}_note": details["note"],
+                    }
                 )
 
-                # Check before publication
-                if not state_topic or not attributes_topic:
-                    LOGGER.error(
-                        "❌ MQTT Sensor non mis à jour, state_topic ou attributes_topic est vide !"
-                    )
-                else:
-                    await self.update_object_in_mqtt(state_topic, qty_in_shopping_lists)
-                    await self.update_object_in_mqtt(
-                        attributes_topic, json.dumps(prod_dict)
-                    )
+            # Adding other fields
+            for field in OTHER_FIELDS:
+                if field in product:
+                    prod_dict[field] = product[field]
 
-            # Create a new entity if it does not exist
-            if entity_state is None:
-                LOGGER.debug(
-                    "Product %s (%s) not found, creating it...", product["name"], entity
-                )
-                LOGGER.debug(
-                    "🟢 Création du sensor MQTT - Object ID: %s, State Topic: %s, Attributes Topic: %s",
-                    object_id,
-                    state_topic,
-                    attributes_topic,
-                )
+            # entity = self.get_entity_in_hass(product_id)
+            # if entity is not None:
+            #    existing_attributes = entity.attributes.copy()
+            #    prod_dict = {**existing_attributes, **prod_dict}
+            # LOGGER.info(prod_dict)
 
-                if state_topic and attributes_topic:
-                    await self.create_mqtt_sensor(
-                        object_id, product["name"], state_topic, attributes_topic
-                    )
-                else:
-                    LOGGER.error(
-                        "❌ MQTT Sensor non créé, state_topic ou attributes_topic est vide !"
-                    )
+            parsed_product = {
+                "name": product["name"],
+                "product_id": product_id,
+                "qty_in_shopping_lists": qty_in_shopping_lists,
+                "attributes": prod_dict,
+            }
+            parsed_products.append(parsed_product)
+            async_dispatcher_send(
+                self.hass, f"{DOMAIN}_add_or_update_sensor", parsed_product
+            )
+
+        return parsed_products
 
     async def update_grocy_shoppinglist_product(self, product_id: int, done: bool):
         """Mark a product as done or not in the shopping list."""
@@ -566,18 +415,6 @@ class ShoppingListWithGrocyApi:
             payload,
         )
 
-    async def mqtt_publish(self, topic: str, payload):
-        """Publish a message to MQTT with optimized connection handling."""
-        if not topic or payload is None or payload == "":
-            LOGGER.error(
-                "❌ MQTT publish failed: topic or subject is empty. Topic: %s, Payload: %s",
-                topic,
-                payload,
-            )
-            return
-
-        await self.update_object_in_mqtt(topic, payload)
-
     async def manage_product(
         self, product_id, shopping_list_id=1, note="", remove_product=False
     ):
@@ -612,6 +449,7 @@ class ShoppingListWithGrocyApi:
 
             # Updating Attributes
             if qty > 0:
+                attributes_to_remove = []
                 attributes.update(
                     {
                         "qty_in_shopping_lists": total_qty,
@@ -621,25 +459,27 @@ class ShoppingListWithGrocyApi:
                     }
                 )
             else:
-                for key in [
+                attributes_to_remove = [
                     f"list_{shopping_list_id}_qty",
                     f"list_{shopping_list_id}_note",
                     f"list_{shopping_list_id}_shop_list_id",
-                ]:
-                    attributes.pop(key, None)
+                ]
                 attributes["qty_in_shopping_lists"] = total_qty
                 attributes["list_count"] = list_count
 
-            # Publication MQTT
-            await self.mqtt_publish(
-                attributes.get("topic").replace("state", "attributes"),
-                json.dumps(attributes),
+            async_dispatcher_send(
+                self.hass,
+                f"{DOMAIN}_add_or_update_sensor",
+                {
+                    "product_id": attributes.get("product_id"),
+                    "qty_in_shopping_lists": total_qty,
+                    "attributes": attributes,
+                    "attributes_to_remove": attributes_to_remove,
+                },
             )
-            await self.mqtt_publish(attributes.get("topic"), total_qty)
 
     async def update_note(self, product_id, shopping_list_id, note):
         """Update a note on a product in the shopping list."""
-        LOGGER.debug("update_note, product_id: %s", product_id)
         entity = self.get_entity_in_hass(product_id)
         if entity is None:
             return
@@ -660,122 +500,43 @@ class ShoppingListWithGrocyApi:
 
         entity_attributes = entity.attributes.copy()
         entity_attributes[f"list_{shopping_list_id}_note"] = note
-        await self.mqtt_publish(
-            entity_attributes.get("topic").replace("state", "attributes"),
-            json.dumps(entity_attributes),
+
+        async_dispatcher_send(
+            self.hass,
+            "shopping_list_with_grocy_add_or_update_sensor",
+            {
+                "product_id": entity.attributes.get("product_id"),
+                "qty_in_shopping_lists": entity.state,
+                "attributes": entity_attributes,
+            },
         )
-
-    async def create_mqtt_binary_sensor(
-        self, object_id, name, state_topic, availability_topic, icon="mdi:refresh"
-    ):
-        """Creates a binary MQTT sensor properly integrated with Home Assistant"""
-        discovery_topic = f"homeassistant/binary_sensor/{object_id}/config"
-        sensor_config = {
-            "name": name,
-            "state_topic": state_topic,
-            "payload_on": "ON",
-            "payload_off": "OFF",
-            "availability": [
-                {
-                    "topic": availability_topic,
-                    "payload_available": "online",
-                    "payload_not_available": "offline",
-                }
-            ],
-            "icon": icon,
-            "unique_id": object_id,
-            "object_id": object_id,
-        }
-
-        LOGGER.debug(
-            "🟢 Création du sensor MQTT : %s", json.dumps(sensor_config, indent=2)
-        )
-        await self.update_object_in_mqtt(discovery_topic, json.dumps(sensor_config))
-        await self.update_object_in_mqtt(availability_topic, "online")
-
-    async def create_mqtt_switch_sensor(
-        self, object_id, name, state_topic, availability_topic, icon="mdi:refresh"
-    ):
-        """Creates a switch MQTT sensor properly integrated with Home Assistant"""
-        discovery_topic = f"homeassistant/switch/{object_id}/config"
-        sensor_config = {
-            "name": name,
-            "state_topic": state_topic,
-            "payload_on": "ON",
-            "payload_off": "OFF",
-            "state_on": "ON",
-            "state_off": "OFF",
-            "availability": [
-                {
-                    "topic": availability_topic,
-                    "payload_available": "online",
-                    "payload_not_available": "offline",
-                }
-            ],
-            "command_topic": state_topic,
-            "optimistic": False,
-            "entity_category": "config",
-            "icon": icon,
-            "unique_id": object_id,
-            "object_id": object_id,
-        }
-
-        LOGGER.debug(
-            "🟢 Création du sensor MQTT : %s", json.dumps(sensor_config, indent=2)
-        )
-        await self.update_object_in_mqtt(discovery_topic, json.dumps(sensor_config))
-        await self.update_object_in_mqtt(availability_topic, "online")
 
     async def update_refreshing_status(self, refreshing):
-        """Updates the refresh status"""
-        object_id = "updating_shopping_list_with_grocy"
-        topic = "shopping-list-with-grocy/binary_sensor/updating"
-        state_topic = f"{topic}/state"
-        availability_topic = f"{topic}/availability"
-
-        entity = self.get_entity_in_hass(f"binary_sensor.{object_id}")
+        entity = self.hass.data[DOMAIN]["entities"].get(
+            "updating_shopping_list_with_grocy"
+        )
 
         if entity is None:
-            await self.create_mqtt_binary_sensor(
-                object_id,
-                "ShoppingListWithGrocy Update in progress",
-                state_topic,
-                availability_topic,
-            )
-            await self.update_object_in_mqtt(state_topic, refreshing)
             return False
 
-        await self.update_object_in_mqtt(state_topic, refreshing)
+        self.hass.async_create_task(entity.update_state(refreshing))
 
     async def is_update_paused(self):
-        """Check if the update is paused."""
-        object_id = "pause_update_shopping_list_with_grocy"
-        topic = "shopping-list-with-grocy/switch/pause_update"
-        state_topic = f"{topic}/state"
-        availability_topic = f"{topic}/availability"
-        entity = self.get_entity_in_hass(f"switch.{object_id}")
+        entity = self.hass.data[DOMAIN]["entities"].get(
+            "pause_update_shopping_list_with_grocy"
+        )
 
         if entity is None:
-            await self.create_mqtt_switch_sensor(
-                object_id,
-                "ShoppingListWithGrocy Pause update",
-                state_topic,
-                availability_topic,
-                "mdi:pause-octagon",
-            )
-            await self.update_object_in_mqtt(state_topic, "OFF")
             return False
 
-        return entity.state == "on"
+        return entity.is_on
 
     async def retrieve_data(self, force=False):
         """Retrieves data and updates if necessary."""
-        await self.update_refreshing_status("ON")
         try:
             last_db_changed_time = await self.fetch_last_db_changed_time()
             is_update_paused = await self.is_update_paused()
 
-            # Checking if an update is needed
             should_update = force or (
                 not is_update_paused
                 and (
@@ -783,15 +544,12 @@ class ShoppingListWithGrocyApi:
                     or last_db_changed_time > self.last_db_changed_time
                 )
             )
+
             if should_update:
                 self.last_db_changed_time = last_db_changed_time
-            else:
-                return self.final_data
 
-            async with self.mqtt_session():
+                await self.update_refreshing_status(True)
                 async with timeout(60):
-                    LOGGER.info("Fetching new data from Grocy API")
-
                     titles = [
                         "products",
                         "shopping_lists",
@@ -801,14 +559,16 @@ class ShoppingListWithGrocyApi:
                         "product_groups",
                         "quantity_units",
                     ]
-                    # Exécuter les requêtes en parallèle pour plus d'efficacité
                     results = await asyncio.gather(
                         *(self.fetch_list(path) for path in titles)
                     )
 
-                    self.final_data = dict(zip(titles, results))  # Met à jour le cache
-                    await self.parse_products(self.final_data)
+                    self.final_data = dict(zip(titles, results))
+
+                    parsed_products = await self.parse_products(self.final_data)
+                    self.final_data["homeassistant_products"] = parsed_products
+
         finally:
-            await self.update_refreshing_status("OFF")
+            await self.update_refreshing_status(False)
 
         return self.final_data

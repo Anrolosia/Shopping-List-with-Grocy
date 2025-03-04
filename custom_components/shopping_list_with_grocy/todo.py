@@ -8,7 +8,7 @@ from homeassistant.components.todo import (
     TodoListEntity,
     TodoListEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -110,7 +110,7 @@ class ShoppingListWithGrocyTodoListEntity(
 
     def _handle_coordinator_update(self) -> None:
         """Handle data updates from coordinator."""
-        shopping_lists = self.coordinator.api.build_item_list(self.coordinator._data)
+        shopping_lists = self.coordinator.api.build_item_list(self.coordinator.data)
         shopping_list = next(
             (lst for lst in shopping_lists if lst["id"] == self._list_id), None
         )
@@ -139,21 +139,24 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the shopping list integration."""
+    LOGGER.info("Setting up todo for Shopping List with Grocy")
+
     config = entry.options or entry.data
     verify_ssl = config.get("verify_ssl", True)
 
-    session = async_get_clientsession(hass, verify_ssl=verify_ssl)
-    api = ShoppingListWithGrocyApi(session, hass, config)
-    coordinator = ShoppingListWithGrocyCoordinator(hass, session, entry, api)
+    instance_data = hass.data[DOMAIN]["instances"]
+    coordinator = instance_data.get("coordinator")
+    api = instance_data.get("api")
+    session = instance_data.get("session")
 
-    await coordinator.async_config_entry_first_refresh()
+    if not coordinator or not api or not session:
+        LOGGER.error(
+            "Missing required instances in hass.data[DOMAIN]. Todo setup aborted."
+        )
+        return
 
     list_prefix = "SLWG -"
-    shopping_lists = api.build_item_list(coordinator._data)
-
-    LOGGER.debug(
-        "Fetched %d total items from ShoppingListWithGrocy", len(shopping_lists)
-    )
+    shopping_lists = api.build_item_list(coordinator.data)
 
     entities = [
         ShoppingListWithGrocyTodoListEntity(coordinator, shopping_list, list_prefix)
@@ -161,4 +164,3 @@ async def async_setup_entry(
     ]
 
     async_add_entities(entities)
-    LOGGER.debug("Added %d entities to Home Assistant", len(entities))
