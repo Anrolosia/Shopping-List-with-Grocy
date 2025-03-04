@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from datetime import timedelta
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
@@ -42,6 +43,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         )
         return
 
+    if "pending_updates" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["pending_updates"] = set()
+
     if "entities" not in hass.data[DOMAIN]:
         hass.data[DOMAIN]["entities"] = {}
 
@@ -68,6 +72,22 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     async_add_entities(sensors, True)
 
+    async def async_batch_update():
+        while True:
+            await asyncio.sleep(5)
+
+            if hass.data[DOMAIN]["pending_updates"]:
+                pending = list(hass.data[DOMAIN]["pending_updates"])
+                hass.data[DOMAIN]["pending_updates"].clear()
+
+                for entity_id in pending:
+                    await hass.services.async_call(
+                        "homeassistant", "update_entity", {"entity_id": entity_id}
+                    )
+                    await asyncio.sleep(0.1)
+
+    pattern = re.compile(r"list_\d+_.*")
+
     async def async_add_or_update_dynamic_sensor(product):
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product['product_id']}"
         entity_registry = async_get(hass)
@@ -75,12 +95,26 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         existing_sensor = hass.states.get(entity_id)
 
         if existing_sensor:
+            existing_state = existing_sensor.state
             existing_attributes = existing_sensor.attributes.copy()
-            attributes_to_remove = product.get("attributes_to_remove", [])
 
+            attributes_to_remove = product.get("attributes_to_remove", [])
             for key in attributes_to_remove:
                 if key in existing_attributes:
                     existing_attributes.pop(key, None)
+
+            keys_in_product = {
+                key for key in product["attributes"].keys() if pattern.match(key)
+            }
+
+            keys_in_existing = {
+                key for key in existing_attributes.keys() if pattern.match(key)
+            }
+
+            keys_to_remove = keys_in_existing - keys_in_product
+
+            for key in keys_to_remove:
+                existing_attributes.pop(key, None)
 
             updated_attributes = {**existing_attributes}
 
@@ -88,11 +122,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 if key not in attributes_to_remove:
                     updated_attributes[key] = value
 
-            hass.states.async_set(
-                entity_id,
-                product["qty_in_shopping_lists"],
-                attributes=updated_attributes,
-            )
+            new_state = str(product["qty_in_shopping_lists"])
+
+            state_changed = new_state != existing_state
+            attributes_changed = updated_attributes != existing_attributes
+
+            if state_changed or attributes_changed:
+                hass.states.async_set(
+                    entity_id, new_state, attributes=updated_attributes
+                )
+
+                hass.data[DOMAIN]["pending_updates"].add(entity_id)
         else:
             sensor = DynamicProductSensor(coordinator, product)
             async_add_entities([sensor])
@@ -112,6 +152,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         hass, f"{DOMAIN}_add_or_update_sensor", async_add_or_update_dynamic_sensor
     )
     async_dispatcher_connect(hass, f"{DOMAIN}_remove_sensor", async_remove_grocy_sensor)
+
+    hass.loop.create_task(async_batch_update())
 
     for product in coordinator._parsed_data:
         await async_add_or_update_dynamic_sensor(product)
