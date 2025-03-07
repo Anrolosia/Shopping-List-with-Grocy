@@ -359,7 +359,7 @@ class ShoppingListWithGrocyApi:
                     prod_dict[field] = product[field]
 
             parsed_product = {
-                "name": product["name"],
+                "name": self.remove_emojis(product["name"]),
                 "product_id": product_id,
                 "qty_in_shopping_lists": qty_in_shopping_lists,
                 "attributes": prod_dict,
@@ -369,7 +369,6 @@ class ShoppingListWithGrocyApi:
                 self.hass, f"{DOMAIN}_add_or_update_sensor", parsed_product
             )
 
-        LOGGER.debug("Parsed products: %s", parsed_products)
         return parsed_products
 
     async def update_grocy_shoppinglist_product(self, product_id: int, done: bool):
@@ -504,7 +503,7 @@ class ShoppingListWithGrocyApi:
 
         async_dispatcher_send(
             self.hass,
-            "shopping_list_with_grocy_add_or_update_sensor",
+            f"{DOMAIN}_add_or_update_sensor",
             {
                 "product_id": entity.attributes.get("product_id"),
                 "qty_in_shopping_lists": entity.state,
