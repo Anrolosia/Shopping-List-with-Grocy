@@ -141,7 +141,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     async def async_add_or_update_dynamic_sensor(product):
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product['product_id']}"
-        LOGGER.debug("Attempting to add/update sensor: %s", entity_id)
+        LOGGER.debug("Adding/updating entity: %s with attributes: %s", entity_id, product["attributes"])
         entity_registry = async_get(hass)
 
         existing_sensor = hass.states.get(entity_id)
@@ -214,6 +214,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class DynamicProductSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator, product):
+        LOGGER.debug("Creating sensor for product: %s with attributes: %s", product.get("name"), product.get("attributes"))
         super().__init__(coordinator)
         unique_id = (
             f"{DOMAIN}_product_v{ENTITY_VERSION}_{product.get('product_id', 'unknown')}"

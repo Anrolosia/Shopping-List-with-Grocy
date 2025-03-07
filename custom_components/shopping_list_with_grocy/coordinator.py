@@ -71,6 +71,7 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
                     if "homeassistant_products" in data
                     else []
                 )
+                LOGGER.debug("Parsed data in coordinator: %s", self._parsed_data)
             else:
                 LOGGER.warning("Received empty or invalid data from API.")
         except asyncio.TimeoutError:

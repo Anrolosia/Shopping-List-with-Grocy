@@ -371,7 +371,8 @@ class ShoppingListWithGrocyApi:
             async_dispatcher_send(
                 self.hass, f"{DOMAIN}_add_or_update_sensor", parsed_product
             )
-
+        
+        LOGGER.debug("Parsed products: %s", parsed_products)
         return parsed_products
 
     async def update_grocy_shoppinglist_product(self, product_id: int, done: bool):
