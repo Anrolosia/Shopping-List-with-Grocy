@@ -125,7 +125,11 @@ async def remove_old_entities_and_init(
     else:
         await coordinator.async_refresh()
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if DOMAIN in hass.data and "todo_setup_done" in hass.data[DOMAIN]:
+        LOGGER.info("⚠️ TODO setup already initialized, skipping duplicate setup.")
+    else:
+        hass.data[DOMAIN]["todo_setup_done"] = True
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_setup_services(hass)
 
 

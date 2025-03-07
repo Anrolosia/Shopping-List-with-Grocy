@@ -139,7 +139,17 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the shopping list integration."""
-    LOGGER.info("Setting up todo for Shopping List with Grocy")
+
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+
+    if "todo_initialized" in hass.data[DOMAIN]:
+        LOGGER.info("⚠️ TODO already initialized, skipping duplicate setup.")
+        return False
+
+    hass.data[DOMAIN]["todo_initialized"] = True
+
+    LOGGER.info("✅ Setting up TODO component for Shopping List with Grocy")
 
     config = entry.options or entry.data
     verify_ssl = config.get("verify_ssl", True)
