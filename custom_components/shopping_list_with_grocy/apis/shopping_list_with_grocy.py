@@ -40,6 +40,7 @@ class ShoppingListWithGrocyApi:
         self.ha_products = []
         self.final_data = []
         self.pagination_limit = 40
+        self.disable_timeout = config.get("disable_timeout", False)
 
         # Time management
         self.current_time = datetime.now(timezone.utc)
@@ -216,7 +217,9 @@ class ShoppingListWithGrocyApi:
 
         # Optimizing Home Assistant entity search
         entities = set(self.hass.states.async_entity_ids())
-        rex = re.compile(r"sensor.shopping_list_with_grocy_[^|]+")
+        rex = re.compile(
+            rf"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_[^|]+"
+        )
         self.ha_products = set(rex.findall("|".join(entities)))
 
         # Indexing data to avoid repeated searches
@@ -549,24 +552,37 @@ class ShoppingListWithGrocyApi:
                 self.last_db_changed_time = last_db_changed_time
 
                 await self.update_refreshing_status(True)
-                async with timeout(60):
-                    titles = [
-                        "products",
-                        "shopping_lists",
-                        "shopping_list",
-                        "locations",
-                        "stock",
-                        "product_groups",
-                        "quantity_units",
-                    ]
+                titles = [
+                    "products",
+                    "shopping_lists",
+                    "shopping_list",
+                    "locations",
+                    "stock",
+                    "product_groups",
+                    "quantity_units",
+                ]
+
+                if self.disable_timeout:
                     results = await asyncio.gather(
                         *(self.fetch_list(path) for path in titles)
                     )
+                else:
+                    async with timeout(60):
+                        results = await asyncio.gather(
+                            *(self.fetch_list(path) for path in titles)
+                        )
 
-                    self.final_data = dict(zip(titles, results))
+                self.final_data = dict(zip(titles, results))
 
-                    parsed_products = await self.parse_products(self.final_data)
-                    self.final_data["homeassistant_products"] = parsed_products
+                if self.disable_timeout:
+                    self.final_data["homeassistant_products"] = (
+                        await self.parse_products(self.final_data)
+                    )
+                else:
+                    async with timeout(60):
+                        self.final_data["homeassistant_products"] = (
+                            await self.parse_products(self.final_data)
+                        )
 
         finally:
             await self.update_refreshing_status(False)

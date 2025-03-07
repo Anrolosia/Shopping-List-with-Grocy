@@ -23,6 +23,7 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         self.api = api
         self.last_successful_fetch = None
         self.data = hass.data.setdefault(DOMAIN, {}).setdefault("products", {})
+        self.disable_timeout = entry.options.get("disable_timeout", False)
         self._parsed_data = (
             self.data["homeassistant_products"]
             if "homeassistant_products" in self.data
@@ -55,18 +56,23 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
 
     async def retrieve_data(self, force=False):
         try:
-            async with timeout(60):
+
+            if self.disable_timeout:
                 data = await self.api.retrieve_data(force)
-                if data is not None:
-                    self.last_successful_fetch = self.hass.loop.time()
-                    self.data = data  # Ensure data is always updated
-                    self._parsed_data = (
-                        data["homeassistant_products"]
-                        if "homeassistant_products" in data
-                        else []
-                    )
-                else:
-                    LOGGER.warning("Received empty or invalid data from API.")
+            else:
+                async with timeout(60):
+                    data = await self.api.retrieve_data(force)
+
+            if data is not None:
+                self.last_successful_fetch = self.hass.loop.time()
+                self.data = data  # Ensure data is always updated
+                self._parsed_data = (
+                    data["homeassistant_products"]
+                    if "homeassistant_products" in data
+                    else []
+                )
+            else:
+                LOGGER.warning("Received empty or invalid data from API.")
         except asyncio.TimeoutError:
             LOGGER.error("Timeout occurred while fetching data from Grocy API.")
         except Exception as e:

@@ -17,12 +17,12 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
-        if config_entry.options is None or len(config_entry.options) == 0:
-            self.options = dict(config_entry.data)
-        else:
-            self.options = dict(config_entry.options)
-        self._data = {}
-        self._data["unique_id"] = self.options.get("unique_id")
+        self.options = (
+            dict(config_entry.options)
+            if config_entry.options
+            else dict(config_entry.data)
+        )
+        self._data = {"unique_id": self.options.get("unique_id")}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -32,15 +32,11 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
         if user_input is not None:
             if not is_valid_url(user_input["api_url"]):
                 self._errors["base"] = "invalid_api_url"
-            if self._errors == {}:
+            if not self._errors:
                 self._data.update(user_input)
-
-                if user_input["mqtt_port"] > 1:
-                    return self.async_create_entry(
-                        title="ShoppingListWithGrocy", data=self._data
-                    )
-
-                return await self.async_step_mqtt_port()
+                return self.async_create_entry(
+                    title="ShoppingListWithGrocy", data=self._data
+                )
 
         return self.async_show_form(
             step_id="init",
@@ -55,47 +51,28 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     vol.Required(
                         "api_key", default=self.options.get("api_key")
                     ): cv.string,
-                    vol.Required(
-                        "mqtt_server",
-                        default=self.options.get("mqtt_server", "127.0.0.1"),
-                    ): cv.string,
-                    vol.Required(
-                        "mqtt_port", default=self.options.get("mqtt_port", 1883)
-                    ): vol.All(cv.port, vol.In([1883, 1884, 8883, 8884, 1])),
-                    vol.Required(
-                        "mqtt_username", default=self.options.get("mqtt_username")
-                    ): cv.string,
-                    vol.Required(
-                        "mqtt_password", default=self.options.get("mqtt_password")
-                    ): cv.string,
+                    vol.Optional(
+                        "disable_timeout",
+                        default=self.options.get("disable_timeout", False),
+                    ): cv.boolean,
                     vol.Optional(
                         "image_download_size",
                         default=self.options.get("image_download_size", 100),
                     ): vol.All(cv.positive_int, vol.In([0, 50, 100, 150, 200])),
-                }
-            ),
-            errors=self._errors,
-        )
-
-    async def async_step_mqtt_port(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        self._errors = {}
-
-        if user_input is not None:
-            if self._errors == {}:
-                self._data.update(user_input)
-                return self.async_create_entry(
-                    title="ShoppingListWithGrocy", data=self._data
-                )
-
-        return self.async_show_form(
-            step_id="mqtt_port",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        "mqtt_custom_port", default=self.options.get("mqtt_custom_port")
-                    ): cv.port,
+                    # Deprecated soon
+                    vol.Optional(
+                        "mqtt_server",
+                        default=self.options.get("mqtt_server", "127.0.0.1"),
+                    ): cv.string,
+                    vol.Optional(
+                        "mqtt_port", default=self.options.get("mqtt_port", 1883)
+                    ): vol.All(cv.port, vol.In([1883, 1884, 8883, 8884, 1])),
+                    vol.Optional(
+                        "mqtt_username", default=self.options.get("mqtt_username")
+                    ): cv.string,
+                    vol.Optional(
+                        "mqtt_password", default=self.options.get("mqtt_password")
+                    ): cv.string,
                 }
             ),
             errors=self._errors,
@@ -110,8 +87,7 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self):
         self._errors = {}
-        self._data = {}
-        self._data["unique_id"] = str(uuid.uuid4())
+        self._data = {"unique_id": str(uuid.uuid4())}
 
     @staticmethod
     def async_get_options_flow(
@@ -128,22 +104,17 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle a flow initialized by the user."""
         self._errors = {}
 
-        # Only a single instance of the integration is allowed:
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
             if not is_valid_url(user_input["api_url"]):
                 self._errors["base"] = "invalid_api_url"
-            if self._errors == {}:
+            if not self._errors:
                 self._data.update(user_input)
-
-                if user_input["mqtt_port"] > 1:
-                    return self.async_create_entry(
-                        title="ShoppingListWithGrocy", data=self._data
-                    )
-
-                return await self.async_step_mqtt_port()
+                return self.async_create_entry(
+                    title="ShoppingListWithGrocy", data=self._data
+                )
 
         return self.async_show_form(
             step_id="user",
@@ -152,38 +123,17 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required("api_url"): cv.string,
                     vol.Required("verify_ssl", default=True): cv.boolean,
                     vol.Required("api_key"): cv.string,
-                    vol.Required("mqtt_server", default="127.0.0.1"): cv.string,
-                    vol.Required("mqtt_port", default=1883): vol.All(
+                    vol.Optional("disable_timeout", default=False): cv.boolean,
+                    vol.Optional("image_download_size", default=100): vol.All(
+                        cv.positive_int, vol.In([0, 50, 100, 150, 200])
+                    ),
+                    # Deprecated soon
+                    vol.Optional("mqtt_server", default="127.0.0.1"): cv.string,
+                    vol.Optional("mqtt_port", default=1883): vol.All(
                         cv.port, vol.In([1883, 1884, 8883, 8884, 1])
                     ),
-                    vol.Required("mqtt_username"): cv.string,
-                    vol.Required("mqtt_password"): cv.string,
-                    vol.Optional(
-                        "image_download_size",
-                        default=100,
-                    ): vol.All(cv.positive_int, vol.In([0, 50, 100, 150, 200])),
-                }
-            ),
-            errors=self._errors,
-        )
-
-    async def async_step_mqtt_port(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        self._errors = {}
-
-        if user_input is not None:
-            if self._errors == {}:
-                self._data.update(user_input)
-                return self.async_create_entry(
-                    title="ShoppingListWithGrocy", data=self._data
-                )
-
-        return self.async_show_form(
-            step_id="mqtt_port",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("mqtt_custom_port", default=1883): cv.port,
+                    vol.Optional("mqtt_username"): cv.string,
+                    vol.Optional("mqtt_password"): cv.string,
                 }
             ),
             errors=self._errors,
@@ -200,5 +150,4 @@ def is_valid_url(url):
         r"(?:/?|[/?]\S+)$",
         re.IGNORECASE,
     )
-
     return url is not None and regex.search(url)
