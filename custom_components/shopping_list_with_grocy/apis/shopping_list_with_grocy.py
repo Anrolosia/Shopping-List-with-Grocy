@@ -70,6 +70,9 @@ class ShoppingListWithGrocyApi:
             % type(obj).__name__
         )
 
+    def remove_emojis(self, text):
+        return re.sub(r'[^\w\s,.-]', '', text) if isinstance(text, str) else text
+
     def build_item_list(self, data) -> list:
         if data is None or "shopping_lists" not in data:
             return []
@@ -262,10 +265,10 @@ class ShoppingListWithGrocyApi:
             qty_unit_stock = quantity_units.get(product.get("qu_id_stock"), "")
 
             # Retrieving location information
-            location = locations.get(product.get("location_id"), "")
-            consume_location = locations.get(
+            location = self.remove_emojis(locations.get(product.get("location_id"), ""))
+            consume_location = self.remove_emojis(locations.get(
                 product.get("default_consume_location_id"), ""
-            )
+            ))
             group = product_groups.get(product.get("product_group_id"), "")
 
             # Product Image Management
@@ -355,12 +358,6 @@ class ShoppingListWithGrocyApi:
                 if field in product:
                     prod_dict[field] = product[field]
 
-            # entity = self.get_entity_in_hass(product_id)
-            # if entity is not None:
-            #    existing_attributes = entity.attributes.copy()
-            #    prod_dict = {**existing_attributes, **prod_dict}
-            # LOGGER.info(prod_dict)
-
             parsed_product = {
                 "name": product["name"],
                 "product_id": product_id,
@@ -371,7 +368,7 @@ class ShoppingListWithGrocyApi:
             async_dispatcher_send(
                 self.hass, f"{DOMAIN}_add_or_update_sensor", parsed_product
             )
-        
+
         LOGGER.debug("Parsed products: %s", parsed_products)
         return parsed_products
 
