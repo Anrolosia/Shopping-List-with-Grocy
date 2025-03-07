@@ -26,6 +26,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     LOGGER.info("Setting up sensors for Shopping List with Grocy")
 
+    entity_registry = async_get(hass)
+
+    old_entity_id = "sensor.product_items"
+    if entity_registry.async_is_registered(old_entity_id):
+        entity_registry.async_remove(old_entity_id)
+        hass.states.async_remove(old_entity_id)
+
+    if hass.states.get(old_entity_id):
+        LOGGER.warning("Failed to remove %s from Home Assistant states. Retrying...", old_entity_id)
+        hass.states.async_remove(old_entity_id)
+
     if DOMAIN not in hass.data:
         LOGGER.error(
             "Domain %s not found in hass.data! Available keys: %s",
@@ -60,6 +71,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     else:
         config_data = config_entry.options
 
+    existing_entities = []
+    for state in hass.states.async_all():
+        if state.entity_id.startswith(f"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_"):
+            product_id = state.entity_id.split("_")[-1]
+            existing_sensor = DynamicProductSensor(coordinator, {"product_id": product_id, "name": state.name, "qty_in_shopping_lists": state.state})
+            existing_entities.append(existing_sensor)
+
     sensors = [
         GrocyShoppingListSensor(
             coordinator, "shopping_list", "Shopping List Items", config_data
@@ -70,7 +88,24 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     for sensor in sensors:
         coordinator.entities.append(sensor)
 
-    async_add_entities(sensors, True)
+    for sensor in sensors:
+        if not hasattr(sensor, "entity_id") or sensor.entity_id is None:
+            sensor.entity_id = f"sensor.{sensor._attr_unique_id}"
+
+    async_add_entities(existing_entities + sensors)
+    for sensor in sensors:
+        current_entity_id = sensor.entity_id
+        expected_entity_id = f"sensor.{sensor._attr_unique_id}"
+
+        if current_entity_id != expected_entity_id:
+            LOGGER.warning(
+                "Entity ID mismatch: Expected %s but got %s. Attempting correction...",
+                expected_entity_id,
+                current_entity_id,
+            )
+
+            sensor.entity_id = expected_entity_id
+            sensor.async_write_ha_state()
 
     async def async_batch_update():
         while True:
@@ -81,15 +116,19 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 hass.data[DOMAIN]["pending_updates"].clear()
 
                 for entity_id in pending:
-                    await hass.services.async_call(
-                        "homeassistant", "update_entity", {"entity_id": entity_id}
-                    )
-                    await asyncio.sleep(0.1)
+                    if entity_id in hass.states.async_entity_ids():
+                        await hass.services.async_call(
+                            "homeassistant", "update_entity", {"entity_id": entity_id}
+                        )
+                        await asyncio.sleep(0.1)
+                    else:
+                        LOGGER.warning("Entity %s not found before update attempt", entity_id)
 
     pattern = re.compile(r"list_\d+_.*")
 
     async def async_add_or_update_dynamic_sensor(product):
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product['product_id']}"
+        LOGGER.debug("Attempting to add/update sensor: %s", entity_id)
         entity_registry = async_get(hass)
 
         existing_sensor = hass.states.get(entity_id)
@@ -206,6 +245,10 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
+    
+        if self.entity_id not in self.coordinator.entities:
+            self.coordinator.entities.append(self)
+
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
@@ -218,12 +261,16 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
         return "mdi:cart"
 
 
-class GrocyShoppingListSensor(CoordinatorEntity):
-
+class GrocyShoppingListSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, sensor_type, name, config):
         super().__init__(coordinator)
+        unique_id = (
+            f"{DOMAIN}_{sensor_type}"
+        )
+        entity_id = f"sensor.{unique_id}"
         self._attr_name = name
-        self._attr_unique_id = f"{DOMAIN}_{sensor_type}"
+        self.entity_id = entity_id
+        self._attr_unique_id = unique_id
         self.sensor_type = sensor_type
         self.config = config
 
@@ -250,3 +297,17 @@ class GrocyShoppingListSensor(CoordinatorEntity):
     @property
     def extra_state_attributes(self):
         return {}
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+
+        entity_registry = async_get(self.hass)
+        registry_entry = entity_registry.async_get(self.entity_id)
+
+        if registry_entry and registry_entry.entity_id != f"sensor.{self._attr_unique_id}":
+            LOGGER.warning(
+                "⚠️ Entity ID mismatch: Expected %s but got %s. Correcting...",
+                f"sensor.{self._attr_unique_id}",
+                registry_entry.entity_id
+            )
+            entity_registry.async_update_entity(registry_entry.entity_id, new_entity_id=f"sensor.{self._attr_unique_id}")
