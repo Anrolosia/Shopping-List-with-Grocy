@@ -59,7 +59,16 @@ async def async_setup(hass: HomeAssistant, config: dict):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     LOGGER.info("🔄 Initializing Shopping List with Grocy")
 
-    migration_success = await async_migrate_entry(hass, entry)
+    migration_success = True
+    if entry.version < 7:
+        LOGGER.debug("🔄 Running migration...")
+        migration_success = await async_migrate_entry(hass, entry)
+        if not migration_success:
+            LOGGER.error("❌ Migration failed. Initialization stopped.")
+            return False
+    else:
+        LOGGER.debug("✔️ Migration already up to date.")
+
     if not migration_success:
         LOGGER.error("❌ Migration failed. Initialization stopped.")
         return False
@@ -322,6 +331,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     if config_entry.version in {4, 5, 6}:
         await remove_mqtt_topics(hass, config_entry)
         hass.config_entries.async_update_entry(config_entry, version=7)
+        await hass.async_block_till_done()
 
     LOGGER.info("Migration to version %s successful", config_entry.version)
 
