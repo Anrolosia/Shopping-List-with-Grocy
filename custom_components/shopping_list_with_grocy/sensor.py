@@ -7,7 +7,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import CONF_NAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -68,9 +68,22 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         LOGGER.error("No coordinator found in hass.data[DOMAIN]. Todo setup aborted.")
         return
 
+    '''
     if not coordinator._parsed_data:
-        LOGGER.warning("Coordinator data not yet available, delaying sensor creation...")
+        LOGGER.warning(
+            "Coordinator data not yet available, delaying sensor creation..."
+        )
         await asyncio.sleep(5)
+
+    while not coordinator._parsed_data:
+        LOGGER.warning("Waiting for coordinator data to be available...")
+        await asyncio.sleep(5)
+    '''
+    await coordinator.async_refresh()
+    if not coordinator.data:
+        LOGGER.warning("Coordinator data is empty, retrying in 5s...")
+        await asyncio.sleep(5)
+        await coordinator.async_refresh()
 
     if config_entry.options is None or len(config_entry.options) == 0:
         config_data = config_entry.data
@@ -145,10 +158,16 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     async def async_add_or_update_dynamic_sensor(product):
         if not coordinator.data:
-            LOGGER.warning("No data available yet for %s, skipping initialization", self.name)
+            LOGGER.warning(
+                "No data available yet for %s, skipping initialization", self.name
+            )
             return  # Ne crée pas l'entité tant que les données ne sont pas chargées
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product['product_id']}"
-        LOGGER.debug("Adding/updating entity: %s with attributes: %s", entity_id, product["attributes"])
+        LOGGER.debug(
+            "Adding/updating entity: %s with attributes: %s",
+            entity_id,
+            product["attributes"],
+        )
         entity_registry = async_get(hass)
 
         existing_sensor = hass.states.get(entity_id)
@@ -207,17 +226,19 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
         await asyncio.sleep(0.1)
 
-    async def handle_force_update():
+    async def async_update_sensors():
         LOGGER.info("Forcing update of all sensors")
-        for sensor in coordinator.entities:
-            await sensor.async_update()
-            sensor.async_write_ha_state()
+        await coordinator.async_request_refresh()
+        for sensor in sensors:
+            if isinstance(sensor, DynamicProductSensor):
+                #await sensor.async_update()
+                await sensor.async_force_update()
 
     async_dispatcher_connect(
         hass, f"{DOMAIN}_add_or_update_sensor", async_add_or_update_dynamic_sensor
     )
     async_dispatcher_connect(hass, f"{DOMAIN}_remove_sensor", async_remove_grocy_sensor)
-    async_dispatcher_connect(hass, f"{DOMAIN}_force_update", handle_force_update)
+    async_dispatcher_connect(hass, f"{DOMAIN}_force_update", async_update_sensors)
 
     hass.loop.create_task(async_batch_update())
 
@@ -230,6 +251,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     for product in coordinator._parsed_data:
         await async_add_or_update_dynamic_sensor(product)
+
+@callback
+async def update_sensors(entities):
+    LOGGER.info("Forcing update of all sensors")
+    """Update all sensors safely within the event loop."""
+    for entity in coordinator.entities:
+        if isinstance(sensor, DynamicProductSensor):
+            if sensor.coordinator.data:
+                await sensor.async_update()
+            else:
+                LOGGER.warning(
+                    "No data available yet for sensor %s, skipping update and retrying in 5s", 
+                    sensor.entity_id
+                )
+                await asyncio.sleep(5)
 
 
 class DynamicProductSensor(CoordinatorEntity, SensorEntity):
@@ -255,15 +291,10 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
         return self._state
 
     async def async_update(self):
-        if not self.coordinator.data or not self.coordinator._parsed_data:
-            LOGGER.warning(
-                "No data available yet for sensor %s, skipping update and retrying in 5s", 
-                self.entity_id
-            )
-            await asyncio.sleep(5)
-            await self.coordinator.async_request_refresh()
+        if not self.coordinator.data:
+            LOGGER.warning("No data available for sensor %s", self.entity_id)
             return
-        
+
         if isinstance(self.coordinator._parsed_data, dict):
             products = self.coordinator._parsed_data.values()
         elif isinstance(self.coordinator._parsed_data, list):
@@ -283,8 +314,12 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
         if product:
             self._state = product.get("qty_in_shopping_lists", 0)
             self._attr_extra_state_attributes = product.get("attributes", {})
-            #LOGGER.info("Updating sensor: %s with state: %s and attributes: %s", self.entity_id, self._state, self._attr_extra_state_attributes)
             self.async_write_ha_state()
+        else:
+            LOGGER.warning("No data available for sensor %s", self.entity_id)
+
+    async def async_force_update(self):
+        await self.async_update()
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()

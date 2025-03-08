@@ -95,19 +95,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if hass.state == CoreState.running:
         await remove_old_entities_and_init(hass, entry, coordinator)
     else:
-        if not hass.data[DOMAIN]["ha_started_handled"]:  # ✅ Vérifie si déjà attaché
+        if not hass.data[DOMAIN]["ha_started_handled"]:
             LOGGER.info("⏳ Waiting for Home Assistant to fully start...")
 
             @callback
             def handle_ha_started(event):
-                if hass.data[DOMAIN][
-                    "ha_started_handled"
-                ]:  # ✅ Vérifie encore avant d'exécuter
+                if hass.data[DOMAIN]["ha_started_handled"]:
                     return
 
-                hass.data[DOMAIN][
-                    "ha_started_handled"
-                ] = True  # ✅ Marque comme exécuté
+                hass.data[DOMAIN]["ha_started_handled"] = True
                 LOGGER.info("🚀 Home Assistant started!")
                 hass.async_create_task(
                     remove_old_entities_and_init(hass, entry, coordinator)

@@ -71,7 +71,7 @@ class ShoppingListWithGrocyApi:
         )
 
     def remove_emojis(self, text):
-        return re.sub(r'[^\w\s,.-]', '', text) if isinstance(text, str) else text
+        return re.sub(r"[^\w\s,.-]", "", text) if isinstance(text, str) else text
 
     def build_item_list(self, data) -> list:
         if data is None or "shopping_lists" not in data:
@@ -266,9 +266,9 @@ class ShoppingListWithGrocyApi:
 
             # Retrieving location information
             location = self.remove_emojis(locations.get(product.get("location_id"), ""))
-            consume_location = self.remove_emojis(locations.get(
-                product.get("default_consume_location_id"), ""
-            ))
+            consume_location = self.remove_emojis(
+                locations.get(product.get("default_consume_location_id"), "")
+            )
             group = product_groups.get(product.get("product_group_id"), "")
 
             # Product Image Management
