@@ -322,7 +322,10 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     if config_entry.version in {4, 5, 6}:
         await remove_mqtt_topics(hass, config_entry)
         hass.config_entries.async_update_entry(config_entry, version=7)
-        await hass.async_block_till_done()
+        try:
+            await asyncio.wait_for(hass.async_block_till_done(), timeout=10)
+        except asyncio.TimeoutError:
+            LOGGER.warning("⚠️ Migration took too long, continuing without blocking.")
 
     LOGGER.info("Migration to version %s successful", config_entry.version)
 
