@@ -70,9 +70,6 @@ class ShoppingListWithGrocyApi:
             % type(obj).__name__
         )
 
-    def remove_emojis(self, text):
-        return re.sub(r"[^\w\s,.-]", "", text) if isinstance(text, str) else text
-
     def build_item_list(self, data) -> list:
         if data is None or "shopping_lists" not in data:
             return []
@@ -212,7 +209,7 @@ class ShoppingListWithGrocyApi:
             product = product[:-2]
 
         async_dispatcher_send(
-            self.hass, "shopping_list_with_grocy_remove_sensor", product.split("_")[-1]
+            self.hass, f"{DOMAIN}_remove_sensor", product.split("_")[-1]
         )
 
     async def parse_products(self, data):
@@ -265,9 +262,9 @@ class ShoppingListWithGrocyApi:
             qty_unit_stock = quantity_units.get(product.get("qu_id_stock"), "")
 
             # Retrieving location information
-            location = self.remove_emojis(locations.get(product.get("location_id"), ""))
-            consume_location = self.remove_emojis(
-                locations.get(product.get("default_consume_location_id"), "")
+            location = locations.get(product.get("location_id"), "")
+            consume_location = locations.get(
+                product.get("default_consume_location_id"), ""
             )
             group = product_groups.get(product.get("product_group_id"), "")
 
@@ -358,8 +355,14 @@ class ShoppingListWithGrocyApi:
                 if field in product:
                     prod_dict[field] = product[field]
 
+            # entity = self.get_entity_in_hass(product_id)
+            # if entity is not None:
+            #    existing_attributes = entity.attributes.copy()
+            #    prod_dict = {**existing_attributes, **prod_dict}
+            # LOGGER.info(prod_dict)
+
             parsed_product = {
-                "name": self.remove_emojis(product["name"]),
+                "name": product["name"],
                 "product_id": product_id,
                 "qty_in_shopping_lists": qty_in_shopping_lists,
                 "attributes": prod_dict,
@@ -369,7 +372,11 @@ class ShoppingListWithGrocyApi:
                 self.hass, f"{DOMAIN}_add_or_update_sensor", parsed_product
             )
 
-        return parsed_products
+        parsed_products_dict = {
+            str(product["product_id"]): product for product in parsed_products
+        }
+
+        return parsed_products_dict
 
     async def update_grocy_shoppinglist_product(self, product_id: int, done: bool):
         """Mark a product as done or not in the shopping list."""
@@ -503,7 +510,7 @@ class ShoppingListWithGrocyApi:
 
         async_dispatcher_send(
             self.hass,
-            f"{DOMAIN}_add_or_update_sensor",
+            "shopping_list_with_grocy_add_or_update_sensor",
             {
                 "product_id": entity.attributes.get("product_id"),
                 "qty_in_shopping_lists": entity.state,

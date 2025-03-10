@@ -24,11 +24,13 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         self.last_successful_fetch = None
         self.data = hass.data.setdefault(DOMAIN, {}).setdefault("products", {})
         self.disable_timeout = entry.options.get("disable_timeout", False)
-        self._parsed_data = (
-            self.data["homeassistant_products"]
-            if "homeassistant_products" in self.data
-            else []
-        )
+        self._parsed_data = {}
+        homeassistant_products = self.data.get("homeassistant_products", {})
+        # Ensure it's a dictionary (failsafe)
+        if not isinstance(homeassistant_products, dict):
+            LOGGER.error("❌ homeassistant_products is not a dictionary! Resetting.")
+            homeassistant_products = {}
+        self._parsed_data.update(homeassistant_products)
         self.entities = []
         super().__init__(
             hass,
@@ -66,12 +68,14 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
             if data is not None:
                 self.last_successful_fetch = self.hass.loop.time()
                 self.data = data  # Ensure data is always updated
-                self._parsed_data = (
-                    data["homeassistant_products"]
-                    if "homeassistant_products" in data
-                    else []
-                )
-                async_dispatcher_send(self.hass, f"{DOMAIN}_force_update")
+                homeassistant_products = self.data.get("homeassistant_products", {})
+                # Ensure it's a dictionary (failsafe)
+                if not isinstance(homeassistant_products, dict):
+                    LOGGER.error(
+                        "❌ homeassistant_products is not a dictionary! Resetting."
+                    )
+                    homeassistant_products = {}
+                self._parsed_data.update(homeassistant_products)
             else:
                 LOGGER.warning("Received empty or invalid data from API.")
         except asyncio.TimeoutError:

@@ -90,8 +90,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN]["instances"]["coordinator"] = coordinator
     hass.data[DOMAIN]["instances"]["session"] = session
     hass.data[DOMAIN]["instances"]["api"] = api
+    hass.data[DOMAIN]["todo_initialized"] = False
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
+    """
     if hass.state == CoreState.running:
         await remove_old_entities_and_init(hass, entry, coordinator)
     else:
@@ -110,6 +112,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 )
 
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_ha_started)
+    """
+    deleted = await remove_restored_entities(hass)
+
+    if deleted:
+        await asyncio.sleep(3)
+
+    await coordinator.async_config_entry_first_refresh()
+
+    if DOMAIN in hass.data and hass.data[DOMAIN]["todo_initialized"] == True:
+        LOGGER.info("⚠️ TODO setup already initialized, skipping duplicate setup.")
+    else:
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    async_setup_services(hass)
 
     return True
 
