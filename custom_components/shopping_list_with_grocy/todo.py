@@ -128,7 +128,7 @@ class ShoppingListWithGrocyTodoListEntity(
         return [
             TodoItem(
                 summary=product["name"],
-                uid=product["shop_list_id"],
+                uid=str(product["shop_list_id"]),
                 status=product["status"],
             )
             for product in self._data.get("products", [])

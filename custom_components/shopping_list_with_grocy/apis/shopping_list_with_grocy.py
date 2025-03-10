@@ -78,7 +78,7 @@ class ShoppingListWithGrocyApi:
         shopping_list_details = {item["id"]: item for item in data["shopping_lists"]}
 
         for product in data["products"]:
-            product_id = product["id"]
+            product_id = int(product["id"])
             qty_factor = (
                 float(product["qu_factor_purchase_to_stock"])
                 if "qu_factor_purchase_to_stock" in product
@@ -87,7 +87,7 @@ class ShoppingListWithGrocyApi:
             )
 
             for in_shopping_list in data["shopping_list"]:
-                if product_id != in_shopping_list["product_id"]:
+                if product_id != int(in_shopping_list["product_id"]):
                     continue
 
                 shopping_list_id = in_shopping_list["shopping_list_id"]
@@ -113,7 +113,7 @@ class ShoppingListWithGrocyApi:
                             "shop_list_id": in_shopping_list["id"],
                             "status": (
                                 TodoItemStatus.NEEDS_ACTION
-                                if in_shopping_list["done"] == "0"
+                                if int(in_shopping_list["done"]) == 0
                                 else TodoItemStatus.COMPLETED
                             ),
                         }
@@ -245,7 +245,7 @@ class ShoppingListWithGrocyApi:
 
         parsed_products = []
         for product in data["products"]:
-            product_id = product["id"]
+            product_id = int(product["id"])
             object_id = f"{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
             entity = f"sensor.{object_id}"
 
@@ -283,8 +283,8 @@ class ShoppingListWithGrocyApi:
 
             # Processing shopping lists
             for in_shopping_list in data["shopping_list"]:
-                if product_id == in_shopping_list["product_id"]:
-                    shopping_list_id = in_shopping_list["shopping_list_id"]
+                if product_id == int(in_shopping_list["product_id"]):
+                    shopping_list_id = int(in_shopping_list["shopping_list_id"])
                     in_shop_list = str(
                         round(int(in_shopping_list["amount"]) / qty_factor)
                     )
@@ -323,15 +323,15 @@ class ShoppingListWithGrocyApi:
             prod_dict = {
                 "product_id": product_id,
                 "parent_product_id": product.get("parent_product_id"),
-                "qty_in_stock": str(stock_qty),
+                "qty_in_stock": stock_qty,
                 "qty_opened": opened_qty,
                 "qty_unopened": unopened_qty,
                 "qty_unit_purchase": qty_unit_purchase,
                 "qty_unit_stock": qty_unit_stock,
-                "aggregated_stock": str(aggregated_qty),
-                "aggregated_opened": opened_aggregated_qty,
-                "aggregated_unopened": unopened_aggregated_qty,
-                "qu_factor_purchase_to_stock": str(qty_factor),
+                "aggregated_stock": float(aggregated_qty),
+                "aggregated_opened": float(opened_aggregated_qty),
+                "aggregated_unopened": float(unopened_aggregated_qty),
+                "qu_factor_purchase_to_stock": float(qty_factor),
                 "product_image": picture,
                 "location": location,
                 "consume_location": consume_location,
@@ -345,7 +345,7 @@ class ShoppingListWithGrocyApi:
                 prod_dict.update(
                     {
                         f"{shop_list}_qty": details["qty"],
-                        f"{shop_list}_shop_list_id": details["shop_list_id"],
+                        f"{shop_list}_shop_list_id": int(details["shop_list_id"]),
                         f"{shop_list}_note": details["note"],
                     }
                 )
