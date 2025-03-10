@@ -128,7 +128,7 @@ class ShoppingListWithGrocyTodoListEntity(
         return [
             TodoItem(
                 summary=product["name"],
-                uid=product["shop_list_id"],
+                uid=str(product["shop_list_id"]),
                 status=product["status"],
             )
             for product in self._data.get("products", [])
@@ -143,13 +143,14 @@ async def async_setup_entry(
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    if "todo_initialized" in hass.data[DOMAIN]:
-        LOGGER.info("⚠️ TODO already initialized, skipping duplicate setup.")
+    if (
+        "todo_initialized" in hass.data[DOMAIN]
+        and hass.data[DOMAIN]["todo_initialized"]
+    ):
+        LOGGER.info("TODO already initialized, skipping duplicate setup.")
         return False
 
     hass.data[DOMAIN]["todo_initialized"] = True
-
-    LOGGER.info("✅ Setting up TODO component for Shopping List with Grocy")
 
     config = entry.options or entry.data
     verify_ssl = config.get("verify_ssl", True)

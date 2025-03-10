@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import logging
 import re
 from datetime import timedelta
@@ -23,8 +24,6 @@ SCAN_INTERVAL = timedelta(seconds=60)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform."""
-
-    LOGGER.info("Setting up sensors for Shopping List with Grocy")
 
     entity_registry = async_get(hass)
 
@@ -55,9 +54,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             list(hass.data[DOMAIN].keys()),
         )
         return
-
-    if "pending_updates" not in hass.data[DOMAIN]:
-        hass.data[DOMAIN]["pending_updates"] = set()
 
     if "entities" not in hass.data[DOMAIN]:
         hass.data[DOMAIN]["entities"] = {}
@@ -118,31 +114,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             sensor.entity_id = expected_entity_id
             sensor.async_write_ha_state()
 
-    async def async_batch_update():
-        while True:
-            await asyncio.sleep(5)
-
-            if hass.data[DOMAIN]["pending_updates"]:
-                pending = list(hass.data[DOMAIN]["pending_updates"])
-                hass.data[DOMAIN]["pending_updates"].clear()
-
-                for entity_id in pending:
-                    if entity_id in hass.states.async_entity_ids():
-                        await hass.services.async_call(
-                            "homeassistant", "update_entity", {"entity_id": entity_id}
-                        )
-                        await asyncio.sleep(0.1)
-                    else:
-                        LOGGER.warning(
-                            "Entity %s not found before update attempt", entity_id
-                        )
-
     pattern = re.compile(r"list_\d+_.*")
 
     async def async_add_or_update_dynamic_sensor(product):
+
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product['product_id']}"
         LOGGER.debug("Attempting to add/update sensor: %s", entity_id)
-        entity_registry = async_get(hass)
+        new_state = product["qty_in_shopping_lists"]
 
         existing_sensor = hass.states.get(entity_id)
 
@@ -184,7 +162,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     entity_id, new_state, attributes=updated_attributes
                 )
 
-                hass.data[DOMAIN]["pending_updates"].add(entity_id)
+                await asyncio.sleep(1)
+
+                # Persist changes in coordinator to prevent rollback
+                product_id = product["product_id"]
+                product_id = product["product_id"]
+                if product_id in coordinator._parsed_data:
+                    coordinator._parsed_data[product_id] = copy.deepcopy(
+                        product
+                    )  # 🔥 This prevents unwanted overwrites
+                    coordinator._parsed_data[product_id][
+                        "qty_in_shopping_lists"
+                    ] = new_state
+                    coordinator._parsed_data[product_id][
+                        "attributes"
+                    ] = updated_attributes
         else:
             sensor = DynamicProductSensor(coordinator, product)
             async_add_entities([sensor])
@@ -205,9 +197,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     )
     async_dispatcher_connect(hass, f"{DOMAIN}_remove_sensor", async_remove_grocy_sensor)
 
-    hass.loop.create_task(async_batch_update())
-
-    for product in coordinator._parsed_data:
+    for product in coordinator._parsed_data.values():
         await async_add_or_update_dynamic_sensor(product)
 
 

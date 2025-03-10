@@ -19,6 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from ..const import DOMAIN, ENTITY_VERSION, OTHER_FIELDS
+from ..utils import is_update_paused
 
 LOGGER = logging.getLogger(__name__)
 
@@ -74,11 +75,11 @@ class ShoppingListWithGrocyApi:
         if data is None or "shopping_lists" not in data:
             return []
 
-        shopping_list_map = {}  # Stores already created shopping lists
+        shopping_list_map = {}
         shopping_list_details = {item["id"]: item for item in data["shopping_lists"]}
 
         for product in data["products"]:
-            product_id = product["id"]
+            product_id = int(product["id"])
             qty_factor = (
                 float(product["qu_factor_purchase_to_stock"])
                 if "qu_factor_purchase_to_stock" in product
@@ -87,7 +88,7 @@ class ShoppingListWithGrocyApi:
             )
 
             for in_shopping_list in data["shopping_list"]:
-                if product_id != in_shopping_list["product_id"]:
+                if product_id != int(in_shopping_list["product_id"]):
                     continue
 
                 shopping_list_id = in_shopping_list["shopping_list_id"]
@@ -113,7 +114,7 @@ class ShoppingListWithGrocyApi:
                             "shop_list_id": in_shopping_list["id"],
                             "status": (
                                 TodoItemStatus.NEEDS_ACTION
-                                if in_shopping_list["done"] == "0"
+                                if int(in_shopping_list["done"]) == 0
                                 else TodoItemStatus.COMPLETED
                             ),
                         }
@@ -209,7 +210,7 @@ class ShoppingListWithGrocyApi:
             product = product[:-2]
 
         async_dispatcher_send(
-            self.hass, "shopping_list_with_grocy_remove_sensor", product.split("_")[-1]
+            self.hass, f"{DOMAIN}_remove_sensor", product.split("_")[-1]
         )
 
     async def parse_products(self, data):
@@ -245,7 +246,7 @@ class ShoppingListWithGrocyApi:
 
         parsed_products = []
         for product in data["products"]:
-            product_id = product["id"]
+            product_id = int(product["id"])
             object_id = f"{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
             entity = f"sensor.{object_id}"
 
@@ -283,8 +284,8 @@ class ShoppingListWithGrocyApi:
 
             # Processing shopping lists
             for in_shopping_list in data["shopping_list"]:
-                if product_id == in_shopping_list["product_id"]:
-                    shopping_list_id = in_shopping_list["shopping_list_id"]
+                if product_id == int(in_shopping_list["product_id"]):
+                    shopping_list_id = int(in_shopping_list["shopping_list_id"])
                     in_shop_list = str(
                         round(int(in_shopping_list["amount"]) / qty_factor)
                     )
@@ -323,15 +324,15 @@ class ShoppingListWithGrocyApi:
             prod_dict = {
                 "product_id": product_id,
                 "parent_product_id": product.get("parent_product_id"),
-                "qty_in_stock": str(stock_qty),
+                "qty_in_stock": stock_qty,
                 "qty_opened": opened_qty,
                 "qty_unopened": unopened_qty,
                 "qty_unit_purchase": qty_unit_purchase,
                 "qty_unit_stock": qty_unit_stock,
-                "aggregated_stock": str(aggregated_qty),
-                "aggregated_opened": opened_aggregated_qty,
-                "aggregated_unopened": unopened_aggregated_qty,
-                "qu_factor_purchase_to_stock": str(qty_factor),
+                "aggregated_stock": float(aggregated_qty),
+                "aggregated_opened": float(opened_aggregated_qty),
+                "aggregated_unopened": float(unopened_aggregated_qty),
+                "qu_factor_purchase_to_stock": float(qty_factor),
                 "product_image": picture,
                 "location": location,
                 "consume_location": consume_location,
@@ -345,7 +346,7 @@ class ShoppingListWithGrocyApi:
                 prod_dict.update(
                     {
                         f"{shop_list}_qty": details["qty"],
-                        f"{shop_list}_shop_list_id": details["shop_list_id"],
+                        f"{shop_list}_shop_list_id": int(details["shop_list_id"]),
                         f"{shop_list}_note": details["note"],
                     }
                 )
@@ -354,12 +355,6 @@ class ShoppingListWithGrocyApi:
             for field in OTHER_FIELDS:
                 if field in product:
                     prod_dict[field] = product[field]
-
-            # entity = self.get_entity_in_hass(product_id)
-            # if entity is not None:
-            #    existing_attributes = entity.attributes.copy()
-            #    prod_dict = {**existing_attributes, **prod_dict}
-            # LOGGER.info(prod_dict)
 
             parsed_product = {
                 "name": product["name"],
@@ -372,7 +367,11 @@ class ShoppingListWithGrocyApi:
                 self.hass, f"{DOMAIN}_add_or_update_sensor", parsed_product
             )
 
-        return parsed_products
+        parsed_products_dict = {
+            str(product["product_id"]): product for product in parsed_products
+        }
+
+        return parsed_products_dict
 
     async def update_grocy_shoppinglist_product(self, product_id: int, done: bool):
         """Mark a product as done or not in the shopping list."""
@@ -524,24 +523,14 @@ class ShoppingListWithGrocyApi:
 
         self.hass.async_create_task(entity.update_state(refreshing))
 
-    async def is_update_paused(self):
-        entity = self.hass.data[DOMAIN]["entities"].get(
-            "pause_update_shopping_list_with_grocy"
-        )
-
-        if entity is None:
-            return False
-
-        return entity.is_on
-
     async def retrieve_data(self, force=False):
         """Retrieves data and updates if necessary."""
         try:
             last_db_changed_time = await self.fetch_last_db_changed_time()
-            is_update_paused = await self.is_update_paused()
+            paused = is_update_paused(self.hass)
 
             should_update = force or (
-                not is_update_paused
+                not paused
                 and (
                     self.last_db_changed_time is None
                     or last_db_changed_time > self.last_db_changed_time

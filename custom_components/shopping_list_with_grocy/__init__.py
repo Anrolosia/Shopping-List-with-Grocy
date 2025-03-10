@@ -90,30 +90,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN]["instances"]["coordinator"] = coordinator
     hass.data[DOMAIN]["instances"]["session"] = session
     hass.data[DOMAIN]["instances"]["api"] = api
+    hass.data[DOMAIN]["todo_initialized"] = False
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    if hass.state == CoreState.running:
-        await remove_old_entities_and_init(hass, entry, coordinator)
+    deleted = await remove_restored_entities(hass)
+
+    if deleted:
+        await asyncio.sleep(3)
+
+    await coordinator.async_config_entry_first_refresh()
+
+    if DOMAIN in hass.data and hass.data[DOMAIN]["todo_initialized"] == True:
+        LOGGER.info("⚠️ TODO setup already initialized, skipping duplicate setup.")
     else:
-        if not hass.data[DOMAIN]["ha_started_handled"]:  # ✅ Vérifie si déjà attaché
-            LOGGER.info("⏳ Waiting for Home Assistant to fully start...")
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-            @callback
-            def handle_ha_started(event):
-                if hass.data[DOMAIN][
-                    "ha_started_handled"
-                ]:  # ✅ Vérifie encore avant d'exécuter
-                    return
-
-                hass.data[DOMAIN][
-                    "ha_started_handled"
-                ] = True  # ✅ Marque comme exécuté
-                LOGGER.info("🚀 Home Assistant started!")
-                hass.async_create_task(
-                    remove_old_entities_and_init(hass, entry, coordinator)
-                )
-
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_ha_started)
+    async_setup_services(hass)
 
     return True
 
@@ -251,7 +243,6 @@ async def remove_mqtt_topics(hass: HomeAssistant, config_entry: ConfigEntry):
 
 
 async def remove_product(client, topic):
-    """Supprime un topic MQTT."""
     async with mqtt_lock:
         try:
             LOGGER.debug("✅ Deleting MQTT topic: %s", topic)

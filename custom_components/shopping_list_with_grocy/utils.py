@@ -12,3 +12,12 @@ def update_domain_data(hass, key, content):
     else:
         hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN][key] = content
+
+
+def is_update_paused(hass):
+    entity = hass.data[DOMAIN]["entities"].get("pause_update_shopping_list_with_grocy")
+
+    if entity is None:
+        return False
+
+    return entity.is_on
