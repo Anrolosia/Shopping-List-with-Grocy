@@ -10,8 +10,11 @@ from homeassistant.components.todo import (
 )
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_registry import async_get
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -36,10 +39,15 @@ class ShoppingListWithGrocyTodoListEntity(
     )
 
     def __init__(
-        self, coordinator: DataUpdateCoordinator, data: dict, list_prefix: str = ""
+        self,
+        hass: HomeAssistant,
+        coordinator: DataUpdateCoordinator,
+        data: dict,
+        list_prefix: str = "",
     ):
         """Initialize the Shopping with Grocy Todo List Entity."""
         super().__init__(coordinator)
+        self.hass = hass
         self.coordinator = coordinator
         self.api = coordinator.api
         self._data = data
@@ -48,9 +56,8 @@ class ShoppingListWithGrocyTodoListEntity(
         self._list_name = data["name"] or f"List #{data['id']}"
         self._attr_name = f"{list_prefix} {self._list_name}".strip()
         self._attr_unique_id = f"{DOMAIN}.list.{self._list_id}"
-        self.entity_id = (
-            f"todo.shopping_list_with_grocy_{self._list_name.lower().replace(' ', '_')}"
-        )
+        self.entity_id = f"todo.{DOMAIN}_list_{self._list_id}"
+        self.hass.data[DOMAIN]["shopping_lists"].append(self._list_id)
 
         LOGGER.debug(
             "Initialized ShoppingListWithGrocyTodoListEntity: name='%s', unique_id='%s', entity_id='%s'",
@@ -90,7 +97,7 @@ class ShoppingListWithGrocyTodoListEntity(
         checked = item.status == TodoItemStatus.COMPLETED
 
         for product in self._data.get("products", []):
-            if product["shop_list_id"] == item.uid:
+            if str(product["shop_list_id"]) == str(item.uid):
                 product["status"] = (
                     TodoItemStatus.COMPLETED if checked else TodoItemStatus.NEEDS_ACTION
                 )
@@ -106,7 +113,7 @@ class ShoppingListWithGrocyTodoListEntity(
         except Exception as e:
             LOGGER.error("Failed to update item %s: %s", item.uid, e)
 
-        await self.coordinator.async_refresh()
+        self.hass.async_create_task(self.coordinator.async_refresh())
 
     def _handle_coordinator_update(self) -> None:
         """Handle data updates from coordinator."""
@@ -133,6 +140,10 @@ class ShoppingListWithGrocyTodoListEntity(
             )
             for product in self._data.get("products", [])
         ]
+
+    @property
+    def icon(self):
+        return "mdi:cart"
 
 
 async def async_setup_entry(
@@ -170,8 +181,78 @@ async def async_setup_entry(
     shopping_lists = api.build_item_list(coordinator.data)
 
     entities = [
-        ShoppingListWithGrocyTodoListEntity(coordinator, shopping_list, list_prefix)
+        ShoppingListWithGrocyTodoListEntity(
+            hass, coordinator, shopping_list, list_prefix
+        )
         for shopping_list in shopping_lists
     ]
 
     async_add_entities(entities)
+
+    async def async_check_new_lists(_=None):
+        """Check for new or removed shopping lists periodically."""
+        entity_registry = async_get(hass)
+        platform = entity_platform.current_platform.get()
+        if not platform:
+            return
+
+        existing_list_ids = set(hass.data[DOMAIN]["shopping_lists"])
+        grocy_list_data = api.build_item_list(coordinator.data)
+
+        if isinstance(grocy_list_data, dict):
+            grocy_list_ids = set(grocy_list_data.keys())
+        elif isinstance(grocy_list_data, list):
+            grocy_list_ids = {lst["id"] for lst in grocy_list_data if "id" in lst}
+        else:
+            LOGGER.error(
+                "❌ Unexpected type for shopping_lists: %s", type(grocy_list_data)
+            )
+            grocy_list_ids = set()
+
+        new_list_ids = grocy_list_ids - existing_list_ids
+        removed_list_ids = existing_list_ids - grocy_list_ids
+
+        new_entities = []
+        for list_id in new_list_ids:
+            list_data = next(
+                (lst for lst in grocy_list_data if lst["id"] == list_id), None
+            )
+            if not list_data:
+                continue
+
+            entity_id = f"todo.{DOMAIN}_list_{list_id}"
+
+            existing_entity = hass.states.get(entity_id)
+            if existing_entity:
+                continue
+
+            entity = ShoppingListWithGrocyTodoListEntity(
+                hass, coordinator, list_data, "SLWG -"
+            )
+            new_entities.append(entity)
+
+        if new_entities:
+            try:
+                async_add_entities(new_entities)
+            except Exception as e:
+                LOGGER.error("❌ Error adding entities: %s", e)
+
+        for list_id in removed_list_ids:
+            entity_id = f"todo.{DOMAIN}_list_{list_id}"
+            existing_entity = hass.states.get(entity_id)
+
+            if existing_entity:
+                if entity_registry.async_is_registered(entity_id):
+                    entity_registry.async_remove(entity_id)
+
+                hass.states.async_remove(entity_id)
+
+                await asyncio.sleep(0.1)
+
+                hass.data[DOMAIN]["shopping_lists"].remove(list_id)
+
+        await coordinator.async_refresh()
+
+    hass.data[DOMAIN]["remove_check_task"] = async_track_time_interval(
+        hass, async_check_new_lists, timedelta(seconds=30)
+    )

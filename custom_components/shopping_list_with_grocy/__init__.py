@@ -92,6 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN]["instances"]["api"] = api
     hass.data[DOMAIN]["todo_initialized"] = False
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data[DOMAIN]["shopping_lists"] = []
 
     deleted = await remove_restored_entities(hass)
 
