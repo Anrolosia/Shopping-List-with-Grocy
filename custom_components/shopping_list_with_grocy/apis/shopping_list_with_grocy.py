@@ -185,10 +185,7 @@ class ShoppingListWithGrocyApi:
         offset = 0
 
         while True:
-            if path == "stock":
-                response = await self.request("get", f"api/{path}", "application/json")
-            else:
-                response = await self.fetch_products(path, offset)
+            response = await self.fetch_products(path, offset)
 
             new_results = await response.json()
 
@@ -297,35 +294,18 @@ class ShoppingListWithGrocyApi:
                     qty_in_shopping_lists += int(in_shop_list)
 
             # Calculation of stock quantities
-            stock_qty = 0
-            aggregated_qty = 0
-            opened_qty = 0
-            opened_aggregated_qty = 0
-            unopened_qty = 0
-            unopened_aggregated_qty = 0
             stock_qty = sum(
                 int(stock["amount"])
                 for stock in data["stock"]
                 if str(stock["product_id"]) == str(product_id)
             )
-            aggregated_qty = sum(
-                float(stock["amount_aggregated"])
-                for stock in data["stock"]
-                if str(stock["product_id"]) == str(product_id)
-            )
             opened_qty = sum(
-                int(stock["amount_opened"])
-                for stock in data["stock"]
-                if str(stock["product_id"]) == str(product_id)
-            )
-            opened_aggregated_qty = sum(
-                float(stock["amount_opened_aggregated"])
+                int(stock["open"])
                 for stock in data["stock"]
                 if str(stock["product_id"]) == str(product_id)
             )
 
             unopened_qty = max(0, stock_qty - opened_qty)
-            unopened_aggregated_qty = max(0, aggregated_qty - opened_aggregated_qty)
 
             prod_dict = {
                 "product_id": product_id,
@@ -335,9 +315,6 @@ class ShoppingListWithGrocyApi:
                 "qty_unopened": unopened_qty,
                 "qty_unit_purchase": qty_unit_purchase,
                 "qty_unit_stock": qty_unit_stock,
-                "aggregated_stock": float(aggregated_qty),
-                "aggregated_opened": float(opened_aggregated_qty),
-                "aggregated_unopened": float(unopened_aggregated_qty),
                 "qu_factor_purchase_to_stock": float(qty_factor),
                 "product_image": picture,
                 "location": location,
