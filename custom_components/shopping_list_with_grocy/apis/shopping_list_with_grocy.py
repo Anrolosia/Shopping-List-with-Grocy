@@ -297,25 +297,31 @@ class ShoppingListWithGrocyApi:
                     qty_in_shopping_lists += int(in_shop_list)
 
             # Calculation of stock quantities
+            stock_qty = 0
+            aggregated_qty = 0
+            opened_qty = 0
+            opened_aggregated_qty = 0
+            unopened_qty = 0
+            unopened_aggregated_qty = 0
             stock_qty = sum(
                 int(stock["amount"])
                 for stock in data["stock"]
-                if stock["product_id"] == product_id
+                if str(stock["product_id"]) == str(product_id)
             )
             aggregated_qty = sum(
                 float(stock["amount_aggregated"])
                 for stock in data["stock"]
-                if stock["product_id"] == product_id
+                if str(stock["product_id"]) == str(product_id)
             )
             opened_qty = sum(
                 int(stock["amount_opened"])
                 for stock in data["stock"]
-                if stock["product_id"] == product_id
+                if str(stock["product_id"]) == str(product_id)
             )
             opened_aggregated_qty = sum(
                 float(stock["amount_opened_aggregated"])
                 for stock in data["stock"]
-                if stock["product_id"] == product_id
+                if str(stock["product_id"]) == str(product_id)
             )
 
             unopened_qty = max(0, stock_qty - opened_qty)
