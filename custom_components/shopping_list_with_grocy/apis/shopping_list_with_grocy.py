@@ -295,12 +295,12 @@ class ShoppingListWithGrocyApi:
 
             # Calculation of stock quantities
             stock_qty = sum(
-                int(stock["amount"])
+                float(stock["amount"])
                 for stock in data["stock"]
                 if str(stock["product_id"]) == str(product_id)
             )
             opened_qty = sum(
-                int(stock["open"])
+                float(stock["amount"]) * int(stock["open"])
                 for stock in data["stock"]
                 if str(stock["product_id"]) == str(product_id)
             )
@@ -310,9 +310,9 @@ class ShoppingListWithGrocyApi:
             prod_dict = {
                 "product_id": product_id,
                 "parent_product_id": product.get("parent_product_id"),
-                "qty_in_stock": stock_qty,
-                "qty_opened": opened_qty,
-                "qty_unopened": unopened_qty,
+                "qty_in_stock": round(stock_qty, 2),
+                "qty_opened": round(opened_qty, 2),
+                "qty_unopened": round(unopened_qty, 2),
                 "qty_unit_purchase": qty_unit_purchase,
                 "qty_unit_stock": qty_unit_stock,
                 "qu_factor_purchase_to_stock": float(qty_factor),
