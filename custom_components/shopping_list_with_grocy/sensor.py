@@ -117,15 +117,14 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     pattern = re.compile(r"list_\d+_.*")
 
     async def async_add_or_update_dynamic_sensor(product):
-
-        entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product['product_id']}"
+        product_id = product["product_id"]
+        entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
         LOGGER.debug("Attempting to add/update sensor: %s", entity_id)
-        new_state = product["qty_in_shopping_lists"]
 
         existing_sensor = hass.states.get(entity_id)
 
         if existing_sensor:
-            existing_state = existing_sensor.state
+            existing_state = str(existing_sensor.state)
             existing_attributes = existing_sensor.attributes.copy()
 
             attributes_to_remove = product.get("attributes_to_remove", [])
@@ -165,8 +164,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 await asyncio.sleep(1)
 
                 # Persist changes in coordinator to prevent rollback
-                product_id = product["product_id"]
-                product_id = product["product_id"]
                 if product_id in coordinator._parsed_data:
                     coordinator._parsed_data[product_id] = copy.deepcopy(
                         product
@@ -205,46 +202,34 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator, product):
         super().__init__(coordinator)
-        unique_id = (
-            f"{DOMAIN}_product_v{ENTITY_VERSION}_{product.get('product_id', 'unknown')}"
-        )
+        product_id = product.get("product_id", "unknown")
+        unique_id = f"{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
         entity_id = f"sensor.{unique_id}"
+
+        self._product_id = str(product_id)
         self._attr_name = product.get("name", "Unknown Product")
         self.entity_id = entity_id
         self._attr_unique_id = unique_id
+
         if coordinator.config_entry and coordinator.config_entry.entry_id:
             self._attr_config_entry_id = coordinator.config_entry.entry_id
         else:
             self._attr_config_entry_id = None
-        self._state = product.get("qty_in_shopping_lists", 0)
-        self._attr_extra_state_attributes = product.get("attributes", {})
 
     @property
     def state(self):
-        return self._state
-
-    async def async_update(self):
-        if isinstance(self.coordinator._parsed_data, dict):
-            products = self.coordinator._parsed_data.values()
-        elif isinstance(self.coordinator._parsed_data, list):
-            products = self.coordinator._parsed_data
-        else:
-            products = []
-
-        product = next(
-            (
-                p
-                for p in products
-                if p.get("product_id") == self._attr_unique_id.split("_")[-1]
-            ),
-            None,
-        )
-
+        product = self.coordinator._parsed_data.get(self._product_id)
         if product:
-            self._state = product.get("qty_in_shopping_lists", 0)
-            self._attr_extra_state_attributes.update(product.get("attributes", {}))
+            qty = product.get("qty_in_shopping_lists", 0)
+            return qty
+        return None
 
-            self.async_write_ha_state()
+    @property
+    def extra_state_attributes(self):
+        product = self.coordinator._parsed_data.get(self._product_id)
+        if product:
+            return product.get("attributes", {})
+        return {}
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
@@ -255,9 +240,6 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
-
-    async def force_update(self):
-        await self.coordinator.async_request_refresh()
 
     @property
     def icon(self):
