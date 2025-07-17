@@ -59,20 +59,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         "image_download_size",
                         default=self.options.get("image_download_size", 100),
                     ): vol.All(cv.positive_int, vol.In([0, 50, 100, 150, 200])),
-                    # Deprecated soon
-                    vol.Optional(
-                        "mqtt_server",
-                        default=self.options.get("mqtt_server", "127.0.0.1"),
-                    ): cv.string,
-                    vol.Optional(
-                        "mqtt_port", default=self.options.get("mqtt_port", 1883)
-                    ): vol.All(cv.port, vol.In([1883, 1884, 8883, 8884, 1])),
-                    vol.Optional(
-                        "mqtt_username", default=self.options.get("mqtt_username")
-                    ): cv.string,
-                    vol.Optional(
-                        "mqtt_password", default=self.options.get("mqtt_password")
-                    ): cv.string,
                 }
             ),
             errors=self._errors,
@@ -81,7 +67,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
 
 @config_entries.HANDLERS.register(DOMAIN)
 class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 6
+    VERSION = 8
     DOMAIN = DOMAIN
     CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
@@ -127,13 +113,6 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional("image_download_size", default=100): vol.All(
                         cv.positive_int, vol.In([0, 50, 100, 150, 200])
                     ),
-                    # Deprecated soon
-                    vol.Optional("mqtt_server", default="127.0.0.1"): cv.string,
-                    vol.Optional("mqtt_port", default=1883): vol.All(
-                        cv.port, vol.In([1883, 1884, 8883, 8884, 1])
-                    ),
-                    vol.Optional("mqtt_username"): cv.string,
-                    vol.Optional("mqtt_password"): cv.string,
                 }
             ),
             errors=self._errors,

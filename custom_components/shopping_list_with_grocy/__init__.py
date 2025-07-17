@@ -6,8 +6,6 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
-import paho.mqtt.client as mqtt
-import paho.mqtt.publish as publish
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigEntryState,
@@ -47,8 +45,6 @@ PLATFORMS: list[Platform] = [
 ]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=60)
-
-mqtt_lock = asyncio.Lock()
 
 
 async def async_setup(hass: HomeAssistant, config: dict):
@@ -153,7 +149,6 @@ async def remove_restored_entities(hass: HomeAssistant):
     }
 
     if entities_to_remove:
-        LOGGER.info("🗑️ Removed old Home Assistant and MQTT entities")
         LOGGER.info("🗑️ Deleting %d restored entities", len(entities_to_remove))
 
         for entity_id in entities_to_remove:
@@ -173,97 +168,6 @@ async def remove_restored_entities(hass: HomeAssistant):
         return True
 
     return False
-
-
-async def remove_mqtt_topics(hass: HomeAssistant, config_entry: ConfigEntry):
-    if config_entry.options is None or len(config_entry.options) == 0:
-        config = config_entry.data
-    else:
-        config = config_entry.options
-
-    mqtt_server = config.get("mqtt_server")
-    mqtt_port = config.get("mqtt_custom_port", config.get("mqtt_port"))
-
-    if not mqtt_server or not mqtt_port:
-        LOGGER.info("⚠️ MQTT server or port not configured, skipping MQTT cleanup.")
-        return
-
-    TOPIC_REGEX = re.compile(
-        r"^homeassistant/switch/pause_update_shopping_list_with_grocy.*|homeassistant/binary_sensor/updating_shopping_list_with_grocy.*|homeassistant/sensor/shopping_list_with_grocy_product_v1_.*|homeassistant/sensor/shopping_list_with_grocy/shopping_list_with_grocy_product_v1_.*|shopping-list-with-grocy/.*$"
-    )
-
-    if config_entry.options is None or len(config_entry.options) == 0:
-        config = config_entry.data
-    else:
-        config = config_entry.options
-    client = mqtt.Client(client_id="ha-client", clean_session=True)
-    mqtt_server = config.get("mqtt_server", "127.0.0.1")
-    mqtt_port = config.get("mqtt_custom_port", config.get("mqtt_port", 1883))
-    mqtt_username = config.get("mqtt_username") or None
-    mqtt_password = config.get("mqtt_password") or None
-    if mqtt_username and mqtt_password:
-        client.username_pw_set(mqtt_username, mqtt_password)
-
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("✅ MQTT connection successful!")
-            client.subscribe("homeassistant/sensor/#")
-            client.subscribe("shopping-list-with-grocy/#")
-            client.subscribe("homeassistant/switch/#")
-            client.subscribe("homeassistant/binary_sensor/#")
-        else:
-            print(f"❌ MQTT connection failed with code {rc}")
-
-    def on_message(client, userdata, msg):
-        topic = msg.topic
-        if TOPIC_REGEX.match(topic):
-            matched_topics.add(topic)
-
-    client.on_connect = on_connect
-    client.on_message = on_message
-
-    matched_topics = set()
-
-    async def find_mqtt_topics(config_entry):
-        client.connect(mqtt_server, mqtt_port)
-        client.loop_start()
-
-        await asyncio.sleep(5)
-
-        client.loop_stop()
-        client.disconnect()
-
-        return matched_topics
-
-    found_topics = await find_mqtt_topics(config_entry)
-    if found_topics:
-        session = mqtt_session(client, mqtt_server, mqtt_port)
-        mqtt_lock = asyncio.Lock()
-        if session is None:
-            LOGGER.error(
-                "❌ MQTT publish failed: MQTT session is None. Topic: %s", topic
-            )
-            return
-
-        async with mqtt_lock:
-            try:
-                async with session:
-                    await asyncio.gather(
-                        *(remove_product(client, topic) for topic in found_topics)
-                    )
-            except Exception as e:
-                LOGGER.error("⚠️ MQTT publish error: %s", str(e))
-
-
-async def remove_product(client, topic):
-    async with mqtt_lock:
-        try:
-            LOGGER.debug("✅ Deleting MQTT topic: %s", topic)
-            client.publish(topic, None, qos=1, retain=True)
-            await asyncio.sleep(0.2)
-            LOGGER.debug(f"Deleted MQTT topic: {topic}")
-        except Exception as e:
-            LOGGER.error("⚠️ MQTT deletion error: %s", str(e))
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -333,7 +237,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     #
 
     if config_entry.version in {4, 5, 6}:
-        await remove_mqtt_topics(hass, config_entry)
         hass.config_entries.async_update_entry(config_entry, version=7)
         try:
             await asyncio.wait_for(hass.async_block_till_done(), timeout=10)
@@ -343,20 +246,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     LOGGER.info("Migration to version %s successful", config_entry.version)
 
     return True
-
-
-@asynccontextmanager
-async def mqtt_session(client, mqtt_server, mqtt_port):
-    LOGGER.debug("🟢 Connecting to MQTT server: %s:%s", mqtt_server, mqtt_port)
-
-    try:
-        client.connect(mqtt_server, mqtt_port)
-        client.loop_start()
-        yield
-    finally:
-        LOGGER.debug("🔴 Disconnecting from MQTT server")
-        client.disconnect()
-        client.loop_stop()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):

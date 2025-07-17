@@ -26,14 +26,6 @@ Easily integrate and manage your [Grocy](https://grocy.info/) shopping list with
 
 ---
 
-## Requirements 💡
-
-This integration relies on MQTT with auto-discovery. Ensure you have the following set up:
-
-- [MQTT Integration](https://www.home-assistant.io/integrations/mqtt) enabled in Home Assistant.
-
----
-
 ## Installation 🏠
 
 ### 1. Install via HACS
@@ -158,10 +150,6 @@ sort:
 ---
 
 ## Troubleshooting & FAQ ❓
-
-### `binary_sensor.updating_shopping_list_with_grocy` Not Created?
-
-- This is likely an MQTT configuration issue. Ensure MQTT is correctly set up and that anonymous connections are disabled. More details [here](https://github.com/Anrolosia/Shopping-List-with-Grocy/issues/29#issuecomment-1782905325).
 
 ---
 

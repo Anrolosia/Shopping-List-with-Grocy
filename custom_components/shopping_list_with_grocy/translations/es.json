@@ -6,17 +6,8 @@
                     "api_url": "Grocy - URL",
                     "verify_ssl": "Verifique el certificado SSL",
                     "api_key": "Grocy - Clave API",
-                    "mqtt_server": "MQTT - Dirección IP",
-                    "mqtt_port": "MQTT - Número de puerto (1 para especificar un puerto personalizado)",
-                    "mqtt_username": "MQTT - Usuario",
-                    "mqtt_password": "MQTT - Contraseña",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
                     "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)"
-                }
-            },
-            "mqtt_port": {
-                "data": {
-                    "mqtt_custom_port": "MQTT - MQTT - Puerto personalizado"
                 }
             }
         },
@@ -34,17 +25,8 @@
                     "api_url": "Grocy - URL",
                     "verify_ssl": "Verifique el certificado SSL",
                     "api_key": "Grocy - Clave API",
-                    "mqtt_server": "MQTT - Dirección IP",
-                    "mqtt_port": "MQTT - Número de puerto ",
-                    "mqtt_username": "MQTT - Usuario",
-                    "mqtt_password": "MQTT - Contraseña",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
                     "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)"
-                }
-            },
-            "mqtt_port": {
-                "data": {
-                    "mqtt_custom_port": "MQTT - Puerto personalizado"
                 }
             }
         },
