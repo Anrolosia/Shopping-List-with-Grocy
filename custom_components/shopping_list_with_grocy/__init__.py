@@ -176,6 +176,18 @@ async def remove_restored_entities(hass: HomeAssistant):
 
 
 async def remove_mqtt_topics(hass: HomeAssistant, config_entry: ConfigEntry):
+    if config_entry.options is None or len(config_entry.options) == 0:
+        config = config_entry.data
+    else:
+        config = config_entry.options
+
+    mqtt_server = config.get("mqtt_server")
+    mqtt_port = config.get("mqtt_custom_port", config.get("mqtt_port"))
+
+    if not mqtt_server or not mqtt_port:
+        LOGGER.info("⚠️ MQTT server or port not configured, skipping MQTT cleanup.")
+        return
+
     TOPIC_REGEX = re.compile(
         r"^homeassistant/switch/pause_update_shopping_list_with_grocy.*|homeassistant/binary_sensor/updating_shopping_list_with_grocy.*|homeassistant/sensor/shopping_list_with_grocy_product_v1_.*|homeassistant/sensor/shopping_list_with_grocy/shopping_list_with_grocy_product_v1_.*|shopping-list-with-grocy/.*$"
     )
