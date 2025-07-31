@@ -1,6 +1,5 @@
 black
 freezegun
-homeassistant
+homeassistant>=2023.3.0
 isort
 pytest
-paho-mqtt

@@ -1,0 +1,46 @@
+{
+    "shopping_list_with_grocy": {
+        "ui": {
+            "panel": {
+                "title": "Shopping Suggestions",
+                "analysis_progress": "Analysis in progress...",
+                "no_analysis": "No suggestions available at this time. Click the refresh button to analyze your shopping needs.",
+                "no_matches": "No products match the current analysis criteria",
+                "refresh": "Refresh Suggestions",
+                "add_all": "Add All Selected",
+                "add_all_count": "Add All Selected ({count})",
+                "quantity": {
+                    "increase": "Increase quantity",
+                    "decrease": "Decrease quantity",
+                    "select": "Select quantity",
+                    "add": "Add to shopping list"
+                },
+                "stats": {
+                    "score": "Score: {score}",
+                    "confidence": "Confidence: {confidence}",
+                    "stock": "Stock: {current}/{min}"
+                }
+            }
+        },
+        "notifications": {
+            "restart_required": {
+                "setup": {
+                    "title": "Restart Required - Shopping List with Grocy",
+                    "message": "Please restart Home Assistant for the Shopping List with Grocy integration to work properly.\n\nYou can restart from Settings > System > Restart or use Developer Tools > YAML."
+                },
+                "settings": {
+                    "title": "Restart Required - Shopping List with Grocy", 
+                    "message": "Please restart Home Assistant for the API changes to take effect.\n\nYou can restart from Settings > System > Restart or use Developer Tools > YAML."
+                },
+                "analysis": {
+                    "title": "Restart Required - Shopping List with Grocy",
+                    "message": "Please restart Home Assistant to apply the new analysis settings.\n\nYou can restart from Settings > System > Restart or use Developer Tools > YAML."
+                }
+            },
+            "suggestions": {
+                "title": "Grocy Shopping Suggestions",
+                "card_hint": "New shopping suggestions are available! Check them out in the [Shopping Suggestions]({url}) panel."
+            }
+        }
+    }
+}

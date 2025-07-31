@@ -22,6 +22,16 @@
 
 Easily integrate and manage your [Grocy](https://grocy.info/) shopping list within your Home Assistant dashboard. This integration seamlessly syncs with Home Assistant's native To-Do lists, enabling you to mark items as done and remove completed entries effortlessly.
 
+### 🎯 **New Feature: AI-Powered Shopping Suggestions**
+
+The integration now includes intelligent shopping suggestions powered by statistical analysis:
+
+- **Smart Predictions:** Analyzes your purchase history to suggest products you're likely to need
+- **Multi-Factor Analysis:** Considers consumption patterns, purchase frequency, and seasonal trends
+- **Auto-Reset:** Suggestions automatically refresh every hour to stay current
+- **Responsive Frontend:** Beautiful, mobile-friendly interface with multi-language support
+- **Customizable Algorithm:** Advanced settings to fine-tune the prediction engine
+
 > ⚠️ **Early Release Notice:** This integration is still under development. Expect possible bugs and instability. Please report any issues or request features [here](https://github.com/Anrolosia/Shopping-List-with-Grocy/issues).
 
 ---
@@ -88,9 +98,53 @@ This integration provides the following sensors:
 - **ID:** `switch.pause_update_shopping_list_with_grocy`
 - Temporarily pauses synchronization between Grocy and Home Assistant.
 
+### **Shopping Suggestions Sensor** *(New!)*
+- **ID:** `sensor.grocy_shopping_suggestions`
+- **Purpose:** Provides AI-powered shopping suggestions based on your purchase history
+- **Features:**
+  - **Statistical Analysis Engine:** Analyzes consumption patterns, purchase frequency, and seasonal trends
+  - **Smart Predictions:** Suggests products you're likely to need based on historical data
+  - **Auto-Reset:** Suggestions automatically reset after 1 hour to maintain freshness
+  - **Manual Control:** Use the reset service to clear suggestions manually
+  - **Intelligent State Detection:** Shows "Analysis in progress..." when generating suggestions, "No analysis available" when no data exists
+
+**Attributes:**
+- `suggestions`: List of suggested products with confidence scores
+- `last_update`: Timestamp of when suggestions were last generated
+- `state`: Number of current suggestions available
+
+**Frontend Panel:**
+Access the shopping suggestions through the dedicated frontend panel with:
+- Responsive design that adapts to mobile and desktop
+- Multi-language support (English, French, Spanish)
+- Real-time suggestion status updates
+- Easy-to-use interface for viewing and managing suggestions
+
 ---
 
 ## Services 🔧
+
+### 🆕 **Shopping Suggestions Services**
+
+#### Generate Shopping Suggestions
+```yaml
+service: shopping_list_with_grocy.suggest_grocery_list
+data: {}
+```
+Analyzes your purchase history and generates personalized shopping suggestions based on:
+- **Consumption patterns** - How quickly you use products
+- **Purchase frequency** - How often you buy specific items  
+- **Seasonal trends** - Time-based purchasing patterns
+
+#### Reset Shopping Suggestions
+```yaml
+service: shopping_list_with_grocy.reset_suggestions
+data: {}
+```
+Manually clears all current suggestions. Useful for:
+- Starting fresh analysis
+- Clearing outdated suggestions
+- Testing the suggestion system
 
 ### Add Product to Shopping List
 ```yaml
@@ -126,6 +180,39 @@ data: {}
 
 ---
 
+## ⚙️ **Advanced Configuration**
+
+### Shopping Suggestions Algorithm Tuning
+
+The shopping suggestions feature includes advanced configuration options for fine-tuning the prediction algorithm. Access these through the integration configuration page:
+
+> ⚠️ **Warning:** These settings control the core algorithm. Incorrect values may break the suggestions feature. We recommend leaving defaults unchanged unless you fully understand the algorithm.
+
+**Algorithm Weights** (must sum to 1.0):
+- **Consumption Weight** (default: 0.4) - How much consumption rate affects suggestions
+- **Frequency Weight** (default: 0.5) - How much purchase frequency affects suggestions  
+- **Seasonal Weight** (default: 0.1) - How much seasonal patterns affect suggestions
+
+**Threshold Settings:**
+- **Score Threshold** (default: 0.3) - Minimum confidence score for suggestions (0.0-1.0)
+
+**Example Advanced Configuration:**
+```yaml
+# For users who prefer frequency-based suggestions
+consumption_weight: 0.3
+frequency_weight: 0.5
+seasonal_weight: 0.2
+score_threshold: 0.65
+
+# For seasonal shoppers
+consumption_weight: 0.3
+frequency_weight: 0.3
+seasonal_weight: 0.4
+score_threshold: 0.55
+```
+
+---
+
 ## Custom Product UserFields 📝
 
 You can add custom fields to your products in Grocy and use them in Home Assistant. Example: Create a **Custom Sort** field in Grocy:
@@ -150,6 +237,31 @@ sort:
 ---
 
 ## Troubleshooting & FAQ ❓
+
+### Shopping Suggestions
+
+**Q: Why am I seeing "Analysis in progress..." for a long time?**
+A: The analysis requires sufficient purchase history data. Ensure you have several months of purchase data in Grocy for accurate predictions.
+
+**Q: My suggestions seem inaccurate. How can I improve them?**
+A: Try adjusting the algorithm weights in the advanced configuration. Increase the consumption weight if you want more consumption-based suggestions, or increase frequency weight for frequency-based predictions.
+
+**Q: How often do suggestions update?**
+A: Suggestions automatically reset after 1 hour to ensure freshness. You can also manually reset them using the reset service.
+
+**Q: Can I disable the auto-reset feature?**
+A: The auto-reset is built-in for optimal user experience, but you can manually generate new suggestions at any time using the suggest service.
+
+**Q: The frontend panel shows "No analysis available"**
+A: This appears when no suggestions have been generated yet or after a reset. Run the `suggest_grocery_list` service to generate new suggestions.
+
+### General Troubleshooting
+
+**Q: Integration not loading?**
+A: Ensure your Grocy URL and API key are correct. Check the Home Assistant logs for detailed error messages.
+
+**Q: To-Do lists not syncing?**
+A: Verify that your Grocy shopping lists are accessible via the API and that the integration has proper permissions.
 
 ---
 

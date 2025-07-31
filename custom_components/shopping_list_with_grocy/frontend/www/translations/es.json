@@ -1,0 +1,46 @@
+{
+    "shopping_list_with_grocy": {
+        "ui": {
+            "panel": {
+                "title": "Sugerencias de Compra",
+                "analysis_progress": "Análisis en progreso...",
+                "no_analysis": "No hay sugerencias disponibles en este momento. Haga clic en el botón de actualizar para analizar sus necesidades de compra.",
+                "no_matches": "Ningún producto coincide con los criterios de análisis actuales",
+                "refresh": "Actualizar Sugerencias",
+                "add_all": "Añadir Seleccionados",
+                "add_all_count": "Añadir Seleccionados ({count})",
+                "quantity": {
+                    "increase": "Aumentar cantidad",
+                    "decrease": "Disminuir cantidad",
+                    "select": "Seleccionar cantidad",
+                    "add": "Añadir a la lista de compra"
+                },
+                "stats": {
+                    "score": "Puntuación: {score}",
+                    "confidence": "Confianza: {confidence}",
+                    "stock": "Stock: {current}/{min}"
+                }
+            }
+        },
+        "notifications": {
+            "restart_required": {
+                "setup": {
+                    "title": "Reinicio Requerido - Shopping List with Grocy",
+                    "message": "Por favor reinicie Home Assistant para que la integración Shopping List with Grocy funcione correctamente.\n\nPuede reiniciar desde Configuración > Sistema > Reiniciar o usar Herramientas de desarrollador > YAML."
+                },
+                "settings": {
+                    "title": "Reinicio Requerido - Shopping List with Grocy",
+                    "message": "Por favor reinicie Home Assistant para que los cambios de la API surtan efecto.\n\nPuede reiniciar desde Configuración > Sistema > Reiniciar o usar Herramientas de desarrollador > YAML."
+                },
+                "analysis": {
+                    "title": "Reinicio Requerido - Shopping List with Grocy",
+                    "message": "Por favor reinicie Home Assistant para aplicar la nueva configuración de análisis.\n\nPuede reiniciar desde Configuración > Sistema > Reiniciar o usar Herramientas de desarrollador > YAML."
+                }
+            },
+            "suggestions": {
+                "title": "Sugerencias de Compras de Grocy",
+                "card_hint": "¡Nuevas sugerencias de compra están disponibles! Revísalas en el panel de [Sugerencias de Compra]({url})."
+            }
+        }
+    }
+}

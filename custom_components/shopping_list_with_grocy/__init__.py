@@ -1,7 +1,5 @@
-import asyncio
 import logging
 import re
-import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -17,21 +15,20 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     Platform,
 )
-from homeassistant.core import CoreState, HomeAssistant, asyncio, callback
+from homeassistant.core import HomeAssistant, asyncio
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
-from homeassistant.helpers.event import (
-    async_call_later,
-    async_track_point_in_time,
-    async_track_state_change,
-)
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
 from .const import DOMAIN, STATE_INIT
 from .coordinator import ShoppingListWithGrocyCoordinator
+from .frontend import async_setup_frontend, async_unload_frontend
 from .schema import configuration_schema
-from .services import async_setup_services, async_unload_services
+from .services import (
+    async_remove_restart_repair_issue,
+    async_setup_services,
+    async_unload_services,
+)
 from .utils import update_domain_data
 
 LOGGER = logging.getLogger(__name__)
@@ -47,7 +44,22 @@ PLATFORMS: list[Platform] = [
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=60)
 
 
-async def async_setup(hass: HomeAssistant, config: dict):
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Shopping List with Grocy component."""
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {
+            "_translation_key": "component.shopping_list_with_grocy.ui.panel.title"
+        }
+
+    if "suggestions" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["suggestions"] = {"products": [], "last_update": None}
+
+    try:
+        await async_setup_frontend(hass)
+    except Exception as e:
+        LOGGER.error("Failed to set up frontend: %s", str(e))
+        pass
+
     update_domain_data(hass, "configuration", CONFIG_SCHEMA(config).get(DOMAIN, {}))
     return True
 
@@ -68,6 +80,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if not migration_success:
         LOGGER.error("❌ Migration failed. Initialization stopped.")
         return False
+
+    await async_setup_frontend(hass)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN].setdefault("instances", {})
@@ -104,6 +118,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     async_setup_services(hass)
 
+    try:
+        await async_remove_restart_repair_issue(hass)
+    except Exception:
+        pass
+
     return True
 
 
@@ -129,6 +148,11 @@ async def remove_old_entities_and_init(
         hass.data[DOMAIN]["todo_setup_done"] = True
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_setup_services(hass)
+
+    try:
+        await async_remove_restart_repair_issue(hass)
+    except Exception:
+        pass
 
 
 async def remove_restored_entities(hass: HomeAssistant):
@@ -252,6 +276,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload Shopping List with Grocy integration."""
     LOGGER.info("🔄 Unloading Shopping List with Grocy...")
 
+    try:
+        await async_unload_frontend(hass)
+    except Exception as e:
+        LOGGER.error("Failed to unload frontend: %s", str(e))
+
     unload_ok = all(
         await asyncio.gather(
             *[
@@ -262,11 +291,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
 
     if unload_ok:
-        # ✅ Vérifie que DOMAIN existe avant de le supprimer
         if DOMAIN in hass.data:
             hass.data.pop(DOMAIN)
 
-        # ✅ Vérifie si d'autres intégrations existent avant de décharger les services
         if not hass.data.get(DOMAIN, {}):
             async_unload_services(hass)
 

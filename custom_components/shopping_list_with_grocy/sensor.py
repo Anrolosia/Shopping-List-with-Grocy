@@ -2,17 +2,15 @@ import asyncio
 import copy
 import logging
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -22,8 +20,99 @@ LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=60)
 
 
+class GrocyShoppingSuggestionsSensor(SensorEntity):
+    """Representation of a Sensor that holds shopping suggestions."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the sensor."""
+        self.hass = hass
+        self._attr_name = "Grocy Shopping Suggestions"
+        self._attr_unique_id = "grocy_shopping_suggestions"
+        self._state = None
+        self._attributes = {}
+        self._reset_timer_cancel = None
+        if DOMAIN not in hass.data:
+            hass.data[DOMAIN] = {}
+        if "suggestions" not in hass.data[DOMAIN]:
+            hass.data[DOMAIN]["suggestions"] = {"products": [], "last_update": None}
+
+    async def async_added_to_hass(self):
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        self._reset_timer_cancel = async_track_time_interval(
+            self.hass, self._check_auto_reset, timedelta(minutes=15)
+        )
+
+    async def async_will_remove_from_hass(self):
+        """When entity will be removed from hass."""
+        if self._reset_timer_cancel:
+            self._reset_timer_cancel()
+        await super().async_will_remove_from_hass()
+
+    async def _check_auto_reset(self, now):
+        """Check if suggestions should be auto-reset after 1 hour."""
+        if DOMAIN not in self.hass.data or "suggestions" not in self.hass.data[DOMAIN]:
+            return
+
+        suggestions_data = self.hass.data[DOMAIN]["suggestions"]
+        last_update_str = suggestions_data.get("last_update")
+
+        if not last_update_str:
+            return
+
+        try:
+            last_update = datetime.fromisoformat(last_update_str.replace("Z", "+00:00"))
+            if last_update.tzinfo is None:
+                last_update = (
+                    last_update.replace(tzinfo=now.tzinfo)
+                    if now.tzinfo
+                    else last_update
+                )
+
+            time_diff = now - last_update
+            if time_diff >= timedelta(hours=1):
+                LOGGER.info(
+                    "Auto-resetting shopping suggestions after %s (1 hour threshold exceeded)",
+                    time_diff,
+                )
+
+                self.hass.data[DOMAIN]["suggestions"] = {
+                    "products": [],
+                    "last_update": None,
+                }
+
+                self.async_write_ha_state()
+            else:
+                remaining = timedelta(hours=1) - time_diff
+                LOGGER.debug("Shopping suggestions will auto-reset in %s", remaining)
+
+        except (ValueError, TypeError) as e:
+            LOGGER.warning("Error parsing last_update time for auto-reset: %s", e)
+
+    @property
+    def state(self) -> int:
+        """Return the number of suggestions."""
+        if DOMAIN in self.hass.data and "suggestions" in self.hass.data[DOMAIN]:
+            return len(self.hass.data[DOMAIN]["suggestions"].get("products", []))
+        return 0
+
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        if DOMAIN in self.hass.data and "suggestions" in self.hass.data[DOMAIN]:
+            return {
+                "suggestions": self.hass.data[DOMAIN]["suggestions"].get(
+                    "products", []
+                ),
+                "last_update": self.hass.data[DOMAIN]["suggestions"].get("last_update"),
+            }
+        return {"suggestions": [], "last_update": None}
+
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform."""
+
+    async_add_entities([GrocyShoppingSuggestionsSensor(hass)])
 
     entity_registry = async_get(hass)
 
@@ -163,11 +252,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
                 await asyncio.sleep(1)
 
-                # Persist changes in coordinator to prevent rollback
                 if product_id in coordinator._parsed_data:
-                    coordinator._parsed_data[product_id] = copy.deepcopy(
-                        product
-                    )  # 🔥 This prevents unwanted overwrites
+                    coordinator._parsed_data[product_id] = copy.deepcopy(product)
                     coordinator._parsed_data[product_id][
                         "qty_in_shopping_lists"
                     ] = new_state

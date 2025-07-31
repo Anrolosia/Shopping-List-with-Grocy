@@ -1,5 +1,3 @@
-# Services.yaml for shopping_list_with_grocy integration
-
 refresh_products:
 
 add_product:
@@ -9,11 +7,25 @@ add_product:
       required: true
       selector:
         text:
+    quantity:
+      example: 1
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          mode: box
     note:
       example: "This is the note of the shopping list item..."
       required: false
       selector:
         text:
+    disable_notification:
+      example: true
+      required: false
+      default: false
+      selector:
+        boolean:
 
 remove_product:
   fields:
@@ -35,3 +47,20 @@ update_note:
       required: true
       selector:
         text:
+
+suggest_grocery_list:
+  name: Suggest Grocery List
+  description: >
+    Analyze product usage frequency and automatically fill the shopping list with items likely to be needed soon.
+  fields:
+    disable_notification:
+      example: true
+      required: false
+      default: false
+      selector:
+        boolean:
+
+reset_suggestions:
+  name: Reset Shopping Suggestions
+  description: >
+    Clear current shopping suggestions and reset the sensor to show "Analysis in progress..." state.

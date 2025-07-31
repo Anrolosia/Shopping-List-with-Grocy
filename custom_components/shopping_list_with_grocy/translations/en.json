@@ -7,7 +7,7 @@
                     "verify_ssl": "Verify SSL certificate",
                     "api_key": "Grocy - API Key",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
-                    "disable_timeout": "Disable timeout on network calls (⚠️ Use at your own risk, may cause instability)"
+                    "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)"
                 }
             }
         },
@@ -21,20 +21,49 @@
     "options": {
         "step": {
             "init": {
+                "title": "Shopping List with Grocy - Configuration",
+                "description": "Configure your Grocy connection settings.\n\nINFO: The shopping suggestions work great with default settings. Only access advanced settings if you need to fine-tune the algorithm.",
                 "data": {
                     "api_url": "Grocy - URL",
                     "verify_ssl": "Verify SSL certificate",
                     "api_key": "Grocy - API Key",
+                    "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
-                    "disable_timeout": "Disable timeout on network calls (⚠️ Use at your own risk, may cause instability)"
+                    "show_advanced": "Show Advanced Algorithm Settings (WARNING: May break functionality if modified incorrectly)"
+                }
+            },
+            "advanced": {
+                "title": "WARNING: Advanced Algorithm Settings",
+                "description": "WARNING: Proceed with caution\n\nThese settings control how the shopping suggestions are calculated. Modifying these values incorrectly may break the suggestion feature.\n\nWe recommend leaving these at their default values unless you fully understand how the algorithm works.\n\nThe algorithm weights must sum to exactly 1.0 or the feature will not work.",
+                "data": {
+                    "score_threshold": "Minimum confidence score for suggestions (0.0-1.0)",
+                    "consumption_weight": "How much to consider usage patterns (0.0-1.0)", 
+                    "frequency_weight": "How much to consider purchase history (0.0-1.0)",
+                    "seasonal_weight": "How much to consider seasonal trends (0.0-1.0)"
                 }
             }
         },
         "error": {
-            "invalid_api_url": "Grocy's URL is invalid, please use valid URL (http:// or https:// with either domain name or ip address)"
+            "invalid_api_url": "Grocy's URL is invalid, please use valid URL (http:// or https:// with either domain name or ip address)",
+            "weight_sum_error": "ERROR: The algorithm weights must sum to exactly 1.0! Current sum is invalid. Please adjust the values so they add up to 1.0.",
+            "invalid_analysis_settings": "Invalid algorithm settings provided. Please check your values and try again."
         }
     },
     "services": {
+        "suggest_grocery_list": {
+            "name": "Suggest grocery list",
+            "description": "Generate suggestions for your shopping list.",
+            "fields": {
+                "disable_notification": {
+                    "name": "Disable notifications",
+                    "description": "Disables sending notifications for this action"
+                }
+            }
+        },
+        "reset_suggestions": {
+            "name": "Reset shopping suggestions",
+            "description": "Clear current shopping suggestions and reset to analysis state."
+        },
         "refresh_products": {
             "name": "Refresh products",
             "description": "Refresh products from Grocy."
@@ -47,9 +76,17 @@
                     "name": "Product ID",
                     "description": "Represents your product id you'd like to add."
                 },
+                "quantity": {
+                    "name": "Quantity",
+                    "description": "The quantity of the product to add."
+                },
                 "note": {
                     "name": "Note",
                     "description": "Note to add with your product."
+                },
+                "disable_notification": {
+                    "name": "Disable notifications",
+                    "description": "Disables sending notifications for this action"
                 }
             }
         },
@@ -74,6 +111,19 @@
                 "note": {
                     "name": "Note",
                     "description": "Note to update for your product."
+                }
+            }
+        }
+    },
+    "issues": {
+        "restart_required": {
+            "title": "Restart Required - Shopping List with Grocy",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Restart Required",
+                        "description": "The integration {name} requires a restart to complete setup."
+                    }
                 }
             }
         }

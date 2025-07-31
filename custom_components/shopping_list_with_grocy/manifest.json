@@ -3,8 +3,10 @@
   "name": "Shopping List with Grocy",
   "codeowners": ["@Anrolosia"],
   "config_flow": true,
+  "dependencies": ["recorder", "http"],
   "documentation": "https://github.com/Anrolosia/Shopping-List-with-Grocy",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Anrolosia/Shopping-List-with-Grocy/issues",
+  "requirements": [],
   "version": "0.21.0"
 }

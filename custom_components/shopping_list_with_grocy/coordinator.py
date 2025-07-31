@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 
 from async_timeout import timeout
-from homeassistant.const import CONF_NAME
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -27,7 +26,6 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         self.disable_timeout = entry.options.get("disable_timeout", False)
         self._parsed_data = {}
         homeassistant_products = self.data.get("homeassistant_products", {})
-        # Ensure it's a dictionary (failsafe)
         if not isinstance(homeassistant_products, dict):
             LOGGER.error("❌ homeassistant_products is not a dictionary! Resetting.")
             homeassistant_products = {}
@@ -72,7 +70,6 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
                     self.last_successful_fetch = self.hass.loop.time()
                     self.data = data
                     homeassistant_products = self.data.get("homeassistant_products", {})
-                    # Ensure it's a dictionary (failsafe)
                     if not isinstance(homeassistant_products, dict):
                         LOGGER.error(
                             "❌ homeassistant_products is not a dictionary! Resetting."

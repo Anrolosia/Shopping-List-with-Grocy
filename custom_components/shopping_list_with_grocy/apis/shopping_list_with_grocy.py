@@ -31,19 +31,23 @@ class ShoppingListWithGrocyApi:
         self.config = config
         self.web_session = websession
 
-        # Configuration API
-        self.api_url = config.get("api_url")
+        self.api_url = (
+            config.get("api_url", "").strip() if config.get("api_url") else None
+        )
+        if not self.api_url:
+            raise ValueError("Grocy API URL is required")
+
         self.verify_ssl = config.get("verify_ssl", True)
         self.api_key = config.get("api_key")
+        if not self.api_key:
+            raise ValueError("Grocy API key is required")
 
-        # Image and data management
         self.image_size = config.get("image_download_size", 0)
         self.ha_products = []
         self.final_data = []
         self.pagination_limit = 40
         self.disable_timeout = config.get("disable_timeout", False)
 
-        # Time management
         self.current_time = datetime.now(timezone.utc)
         self.last_db_changed_time = None
 
@@ -93,7 +97,6 @@ class ShoppingListWithGrocyApi:
 
                 shopping_list_id = in_shopping_list["shopping_list_id"]
 
-                # Retrieving the shopping list
                 if shopping_list_id not in shopping_list_map:
                     shopping_list = shopping_list_details.get(shopping_list_id)
                     if shopping_list:
@@ -103,7 +106,6 @@ class ShoppingListWithGrocyApi:
                             "products": [],
                         }
 
-                # Adding the product to the list
                 if shopping_list_id in shopping_list_map:
                     in_shop_list = str(
                         round(int(in_shopping_list["amount"]) / qty_factor)
@@ -126,6 +128,11 @@ class ShoppingListWithGrocyApi:
         self, method: str, url: str, accept: str, payload: dict = None, **kwargs
     ) -> aiohttp.ClientResponse:
         """Make an asynchronous HTTP request."""
+        if not self.api_url:
+            raise ValueError("Grocy API URL is not configured")
+        if not self.api_key:
+            raise ValueError("Grocy API key is not configured")
+
         method = method.upper()
         is_get = method == "GET"
 
@@ -140,14 +147,38 @@ class ShoppingListWithGrocyApi:
         else:
             headers["Content-Type"] = "application/json"
 
-        return await self.web_session.request(
-            method,
-            f"{self.api_url.rstrip('/')}/{url}",
-            headers=headers,
-            json=payload if payload and not is_get else None,
-            ssl=self.verify_ssl,
-            **kwargs,
-        )
+        try:
+            base_url = self.api_url.rstrip("/") if self.api_url else ""
+            full_url = f"{base_url}/{url}"
+
+            timeout_value = None if self.disable_timeout else 30
+            async with timeout(timeout_value):
+                response = await self.web_session.request(
+                    method,
+                    full_url,
+                    headers=headers,
+                    json=payload if payload and not is_get else None,
+                    ssl=self.verify_ssl,
+                    **kwargs,
+                )
+
+                if response.status >= 400:
+                    error_text = await response.text()
+                    LOGGER.error(
+                        "Grocy API error: %s - %s", response.status, error_text
+                    )
+                    raise aiohttp.ClientError(
+                        f"API request failed: {response.status} - {error_text}"
+                    )
+
+                return response
+
+        except asyncio.TimeoutError as err:
+            LOGGER.error("Timeout connecting to Grocy API at %s: %s", self.api_url, err)
+            raise
+        except aiohttp.ClientError as err:
+            LOGGER.error("Error connecting to Grocy API at %s: %s", self.api_url, err)
+            raise
 
     async def fetch_products(self, path: str, offset: int):
         """Fetch paginated products or other objects."""
@@ -174,7 +205,6 @@ class ShoppingListWithGrocyApi:
             "get", "api/system/db-changed-time", "application/json"
         )
 
-        # Parsing JSON response efficiently
         last_changed = await response.json()
 
         return datetime.strptime(last_changed["changed_time"], "%Y-%m-%d %H:%M:%S")
@@ -189,13 +219,11 @@ class ShoppingListWithGrocyApi:
 
             new_results = await response.json()
 
-            # Stop condition: if no new result is returned
             if not new_results:
                 break
 
             data.extend(new_results)
 
-            # Managing the maximum number of pages to avoid infinite loops
             offset += self.pagination_limit
             if offset // self.pagination_limit >= max_pages:
                 break
@@ -213,14 +241,12 @@ class ShoppingListWithGrocyApi:
     async def parse_products(self, data):
         self.current_time = datetime.now(timezone.utc)
 
-        # Optimizing Home Assistant entity search
         entities = set(self.hass.states.async_entity_ids())
         rex = re.compile(
             rf"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_[^|]+"
         )
         self.ha_products = set(rex.findall("|".join(entities)))
 
-        # Indexing data to avoid repeated searches
         quantity_units = {q["id"]: q["name"] for q in data["quantity_units"]}
         locations = {l["id"]: l["name"] for l in data["locations"]}
         product_groups = {g["id"]: g["name"] for g in data["product_groups"]}
@@ -247,7 +273,6 @@ class ShoppingListWithGrocyApi:
             object_id = f"{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
             entity = f"sensor.{object_id}"
 
-            # Retrieving product fields
             userfields = product.get("userfields", {})
             qty_factor = (
                 float(product.get("qu_factor_purchase_to_stock", 1.0))
@@ -255,18 +280,15 @@ class ShoppingListWithGrocyApi:
                 else 1.0
             )
 
-            # Unit Recovery
             qty_unit_purchase = quantity_units.get(product.get("qu_id_purchase"), "")
             qty_unit_stock = quantity_units.get(product.get("qu_id_stock"), "")
 
-            # Retrieving location information
             location = locations.get(product.get("location_id"), "")
             consume_location = locations.get(
                 product.get("default_consume_location_id"), ""
             )
             group = product_groups.get(product.get("product_group_id"), "")
 
-            # Product Image Management
             picture = ""
             if self.image_size > 0 and product.get("picture_file_name"):
                 picture_response = await self.fetch_image(
@@ -275,11 +297,9 @@ class ShoppingListWithGrocyApi:
                 picture_bytes = await picture_response.read()
                 picture = base64.b64encode(picture_bytes).decode("utf-8")
 
-            # Initialization of shopping lists and quantities
             shopping_lists = {}
             qty_in_shopping_lists = 0
 
-            # Processing shopping lists
             for in_shopping_list in data["shopping_list"]:
                 if product_id == int(in_shopping_list["product_id"]):
                     shopping_list_id = int(in_shopping_list["shopping_list_id"])
@@ -293,7 +313,6 @@ class ShoppingListWithGrocyApi:
                     }
                     qty_in_shopping_lists += int(in_shop_list)
 
-            # Calculation of stock quantities
             stock_qty = sum(
                 float(stock["amount"])
                 for stock in data["stock"]
@@ -324,7 +343,6 @@ class ShoppingListWithGrocyApi:
                 "list_count": len(shopping_lists),
             }
 
-            # Added shopping_list information
             for shop_list, details in shopping_lists.items():
                 prod_dict.update(
                     {
@@ -334,7 +352,6 @@ class ShoppingListWithGrocyApi:
                     }
                 )
 
-            # Adding other fields
             for field in OTHER_FIELDS:
                 if field in product:
                     prod_dict[field] = product[field]
@@ -414,11 +431,11 @@ class ShoppingListWithGrocyApi:
 
         attributes = entity.attributes.copy()
         if "product_id" in attributes:
-            total_qty = max(0, int(state_value) + (-1 if remove_product else 1))
+            change = -1 if remove_product else 1
+            total_qty = max(0, int(state_value) + change)
             qty = max(
                 0,
-                int(attributes.get(f"list_{shopping_list_id}_qty", 0))
-                + (-1 if remove_product else 1),
+                int(attributes.get(f"list_{shopping_list_id}_qty", 0)) + change,
             )
             list_count = max(
                 0, attributes.get("list_count", 0) + (1 if not remove_product else -1)
@@ -426,13 +443,12 @@ class ShoppingListWithGrocyApi:
 
             await self.update_grocy_product(
                 attributes.get("product_id"),
-                attributes.get("qu_factor_purchase_to_stock"),
+                attributes.get("qu_factor_purchase_to_stock", 1),
                 str(shopping_list_id),
                 note,
                 remove_product,
             )
 
-            # Updating Attributes
             if qty > 0:
                 attributes_to_remove = []
                 attributes.update(

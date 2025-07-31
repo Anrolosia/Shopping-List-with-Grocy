@@ -16,6 +16,7 @@ SERVICE_NOTE = "update_note"
 SERVICE_ATTR_PRODUCT_ID = "product_id"
 SERVICE_ATTR_SHOPPING_LIST_ID = "shopping_list_id"
 SERVICE_ATTR_NOTE = "note"
+SERVICE_ATTR_AMOUNT = "amount"
 
 OTHER_FIELDS = {
     "qu_id_purchase",

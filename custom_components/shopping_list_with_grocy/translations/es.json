@@ -21,20 +21,49 @@
     "options": {
         "step": {
             "init": {
+                "title": "Shopping List with Grocy - Configuración",
+                "description": "Configure los ajustes de conexión de Grocy.\n\nℹ️ **Las sugerencias de compras funcionan perfectamente con la configuración predeterminada.** Solo acceda a la configuración avanzada si necesita ajustar el algoritmo.",
                 "data": {
                     "api_url": "Grocy - URL",
                     "verify_ssl": "Verifique el certificado SSL",
                     "api_key": "Grocy - Clave API",
+                    "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
-                    "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)"
+                    "show_advanced": "⚙️ Mostrar Configuración Avanzada del Algoritmo (⚠️ Puede romper la funcionalidad si se modifica incorrectamente)"
+                }
+            },
+            "advanced": {
+                "title": "⚠️ Configuración Avanzada del Algoritmo",
+                "description": "⚠️ **Proceder con precaución** ⚠️\n\nEstos ajustes controlan cómo se calculan las sugerencias de compras. Modificar estos valores incorrectamente puede romper la función de sugerencias.\n\nRecomendamos dejar estos valores en su configuración predeterminada a menos que entienda completamente cómo funciona el algoritmo.\n\nLos pesos del algoritmo deben sumar exactamente 1.0 o la función no funcionará.",
+                "data": {
+                    "score_threshold": "Puntuación mínima de confianza para sugerencias (0.0-1.0)",
+                    "consumption_weight": "Cuánto considerar los patrones de uso (0.0-1.0)", 
+                    "frequency_weight": "Cuánto considerar el historial de compras (0.0-1.0)",
+                    "seasonal_weight": "Cuánto considerar las tendencias estacionales (0.0-1.0)"
                 }
             }
         },
         "error": {
-            "invalid_api_url": "La URL de Grocy no es válida. Por favor, inténtalo de nuevo con una URL válida (http:// o https:// con el nombre del dominio o dirección IP)"
+            "invalid_api_url": "La URL de Grocy no es válida. Por favor, inténtalo de nuevo con una URL válida (http:// o https:// con el nombre del dominio o dirección IP)",
+            "weight_sum_error": "⚠️ ERROR: ¡Los pesos del algoritmo deben sumar exactamente 1.0! La suma actual es inválida. Por favor ajuste los valores para que sumen 1.0.",
+            "invalid_analysis_settings": "Configuración de algoritmo inválida proporcionada. Por favor verifique sus valores e intente de nuevo."
         }
     },
     "services": {
+        "suggest_grocery_list": {
+            "name": "Sugerir lista de la compra",
+            "description": "Generar sugerencias para su lista de la compra.",
+            "fields": {
+                "disable_notification": {
+                    "name": "Desactivar notificaciones",
+                    "description": "Desactiva el envío de notificaciones para esta acción"
+                }
+            }
+        },
+        "reset_suggestions": {
+            "name": "Resetear sugerencias de compra",
+            "description": "Limpiar las sugerencias actuales y volver al estado de análisis."
+        },
         "refresh_products": {
             "name": "Actualizar productos",
             "description": "Actualice los productos Grocy."
@@ -47,9 +76,17 @@
                     "name": "Product ID",
                     "description": "Representa el identificador de su producto que desea agregar."
                 },
+                "quantity": {
+                    "name": "Cantidad",
+                    "description": "La cantidad del producto a añadir."
+                },
                 "note": {
                     "name": "Note",
                     "description": "Nota para agregar con su producto."
+                },
+                "disable_notification": {
+                    "name": "Desactivar notificaciones",
+                    "description": "Desactiva el envío de notificaciones para esta acción"
                 }
             }
         },
@@ -74,6 +111,19 @@
                 "note": {
                     "name": "Note",
                     "description": "Nota para actualizar su producto."
+                }
+            }
+        }
+    },
+    "issues": {
+        "restart_required": {
+            "title": "Reinicio Requerido - Shopping List with Grocy",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Reinicio requerido",
+                        "description": "La integración {name} requiere un reinicio para completar la configuración."
+                    }
                 }
             }
         }
