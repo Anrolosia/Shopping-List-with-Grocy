@@ -22,15 +22,25 @@
 
 Easily integrate and manage your [Grocy](https://grocy.info/) shopping list within your Home Assistant dashboard. This integration seamlessly syncs with Home Assistant's native To-Do lists, enabling you to mark items as done and remove completed entries effortlessly.
 
-### 🎯 **New Feature: AI-Powered Shopping Suggestions**
+### 🎯 **New Features: AI-Powered Shopping Suggestions & Bidirectional Sync**
 
-The integration now includes intelligent shopping suggestions powered by statistical analysis:
+The integration now includes two major new features:
 
+**🤖 AI-Powered Shopping Suggestions:**
 - **Smart Predictions:** Analyzes your purchase history to suggest products you're likely to need
 - **Multi-Factor Analysis:** Considers consumption patterns, purchase frequency, and seasonal trends
 - **Auto-Reset:** Suggestions automatically refresh every hour to stay current
 - **Responsive Frontend:** Beautiful, mobile-friendly interface with multi-language support
 - **Customizable Algorithm:** Advanced settings to fine-tune the prediction engine
+
+**🔄 Bidirectional Sync:**
+- **Two-Way Integration:** Add items through Home Assistant todo lists and they automatically sync to Grocy
+- **Smart Product Matching:** Intelligent search with exact and fuzzy matching (handles accents, case sensitivity)
+- **Auto Product Creation:** When no match is found, new products are created automatically in Grocy
+- **Quantity Management:** Support for quantity formats like "Milk (x2)" with automatic parsing
+- **Multiple Choice Handling:** When multiple products match, get notifications to choose the right one
+- **Voice Assistant Ready:** Includes multilingual voice commands (EN/FR/ES) via blueprint
+- **Safety Features:** Emergency stop/restart services and comprehensive error handling
 
 > ⚠️ **Early Release Notice:** This integration is still under development. Expect possible bugs and instability. Please report any issues or request features [here](https://github.com/Anrolosia/Shopping-List-with-Grocy/issues).
 
@@ -119,6 +129,27 @@ Access the shopping suggestions through the dedicated frontend panel with:
 - Multi-language support (English, French, Spanish)
 - Real-time suggestion status updates
 - Easy-to-use interface for viewing and managing suggestions
+
+### **Todo List Integration** *(New!)*
+- **ID:** `todo.shopping_list_with_grocy_list_<list_id>`
+- **Purpose:** Native Home Assistant todo lists that sync bidirectionally with Grocy
+- **Features:**
+  - **Two-Way Sync:** Add items in HA and they appear in Grocy, mark as done in either system
+  - **Smart Product Search:** Intelligent matching with exact and fuzzy search capabilities
+  - **Auto Product Creation:** Unknown products are automatically created in Grocy with proper defaults
+  - **Quantity Support:** Parse quantities like "Milk (x2)" and handle them correctly
+  - **Multiple Choice Notifications:** When multiple products match, get notifications to choose
+  - **Accent & Case Insensitive:** Searches handle "café" matching "Cafe" automatically
+
+**Configuration:**
+Enable bidirectional sync in the integration configuration to activate this feature.
+
+**📖 Detailed Setup Guide:**
+For comprehensive setup instructions and advanced configuration options, see our detailed documentation:
+- **[Two-Way Sync Setup Guide](docs/TWO_WAY_SYNC.md)** - Complete walkthrough for bidirectional sync configuration
+
+**🎤 Voice Assistant Blueprint:**
+The integration includes a powerful voice assistant blueprint for hands-free shopping list management. 
 
 ---
 

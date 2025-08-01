@@ -10,6 +10,7 @@ STATE_COMPLETED = "completed"
 
 EVENT_STARTED = "shopping_list_with_grocy_started"
 SERVICE_REFRESH = "refresh_products"
+SERVICE_SEARCH = "search_products"
 SERVICE_ADD = "add_product"
 SERVICE_REMOVE = "remove_product"
 SERVICE_NOTE = "update_note"

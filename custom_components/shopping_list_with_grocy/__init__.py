@@ -97,6 +97,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     session = async_get_clientsession(hass)
     coordinator = ShoppingListWithGrocyCoordinator(hass, session, entry, api)
 
+    # Link coordinator to API for bidirectional sync
+    api.coordinator = coordinator
+
     hass.data[DOMAIN]["instances"]["coordinator"] = coordinator
     hass.data[DOMAIN]["instances"]["session"] = session
     hass.data[DOMAIN]["instances"]["api"] = api

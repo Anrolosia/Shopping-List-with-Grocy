@@ -20,6 +20,79 @@ LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=60)
 
 
+class GrocyMultipleChoicesSensor(SensorEntity):
+    """Sensor that tracks recent multiple choice events for voice assistants."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the sensor."""
+        self.hass = hass
+        self._attr_name = "Grocy Multiple Choices"
+        self._attr_unique_id = "grocy_multiple_choices"
+        self._attr_icon = "mdi:format-list-numbered"
+        self._event_unsub = None
+
+    async def async_added_to_hass(self):
+        """Register dispatcher signal listener when entity is added to hass."""
+        from homeassistant.helpers.dispatcher import async_dispatcher_connect
+        if self._event_unsub is None:
+            self._event_unsub = async_dispatcher_connect(
+                self.hass, "grocy_multiple_choices_updated", self._handle_multiple_choices_event
+            )
+            LOGGER.error("[GrocyMultipleChoicesSensor] Dispatcher listener registered for grocy_multiple_choices_updated signal.")
+
+    async def async_will_remove_from_hass(self):
+        """Unregister dispatcher signal listener when entity is removed from hass."""
+        if self._event_unsub is not None:
+            self._event_unsub()
+            self._event_unsub = None
+            LOGGER.error("[GrocyMultipleChoicesSensor] Dispatcher listener unregistered.")
+
+    async def _handle_multiple_choices_event(self, event):
+        LOGGER.error(f"[GrocyMultipleChoicesSensor] Event received: {event}")
+        self.async_write_ha_state()
+        self.schedule_update_ha_state()
+        
+    @property
+    def state(self) -> str:
+        """Return the state of the sensor."""
+        recent_choices = self.hass.data.get(DOMAIN, {}).get("recent_multiple_choices", {})
+        import time
+        current_time = time.time()
+        
+        # Clean up old entries (older than 30 seconds)
+        valid_choices = {
+            product_name: choice_data 
+            for product_name, choice_data in recent_choices.items()
+            if current_time - choice_data.get("timestamp", 0) < 30
+        }
+
+        LOGGER.error(f"[GrocyMultipleChoicesSensor] recent_choices: {recent_choices}")
+        LOGGER.error(f"[GrocyMultipleChoicesSensor] valid_choices: {valid_choices}")
+        
+        if valid_choices:
+            return "multiple_found"
+        return "none"
+    
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        recent_choices = self.hass.data.get(DOMAIN, {}).get("recent_multiple_choices", {})
+        import time
+        current_time = time.time()
+        
+        # Clean up old entries and return valid ones
+        valid_choices = {
+            product_name: choice_data 
+            for product_name, choice_data in recent_choices.items()
+            if current_time - choice_data.get("timestamp", 0) < 30
+        }
+        
+        return {
+            "recent_choices": valid_choices,
+            "choice_count": len(valid_choices)
+        }
+
+
 class GrocyShoppingSuggestionsSensor(SensorEntity):
     """Representation of a Sensor that holds shopping suggestions."""
 
@@ -112,7 +185,10 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform."""
 
-    async_add_entities([GrocyShoppingSuggestionsSensor(hass)])
+    async_add_entities([
+        GrocyShoppingSuggestionsSensor(hass),
+        GrocyMultipleChoicesSensor(hass)
+    ])
 
     entity_registry = async_get(hass)
 

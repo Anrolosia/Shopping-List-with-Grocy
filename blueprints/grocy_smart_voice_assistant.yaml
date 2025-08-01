@@ -1,0 +1,169 @@
+blueprint:
+  name: Grocy Voice Assistant - Smart Choice Handler
+  description: >
+    Smart voice assistant for Grocy shopping lists with intelligent choice handling.
+    Uses the voice_add_product service for proper feedback and multiple choice detection.
+    Automatically handles single products, multiple choices, and voice selection.
+  domain: automation
+  input:
+    conversation_agent:
+      name: Conversation Agent
+      description: The conversation agent to use for voice commands
+      default: "conversation.home_assistant"
+      selector:
+        entity:
+          domain: conversation
+    default_shopping_list:
+      name: Default Shopping List ID
+      description: Default Grocy shopping list ID to use when none specified
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    language:
+      name: Language
+      description: Language for voice responses
+      default: "french"
+      selector:
+        select:
+          options:
+            - label: "Français"
+              value: "french"
+            - label: "English"
+              value: "english"
+            - label: "Español"
+              value: "spanish"
+
+variables:
+  default_list: !input default_shopping_list
+  conversation_agent: !input conversation_agent
+  language: !input language
+
+trigger:
+  - platform: conversation
+    command:
+      # French commands
+      - "Ajoute {product} à [ma] liste de courses"
+      - "Mets {product} sur [ma] liste de courses"
+      - "J'ai besoin de {product}"
+      - "Ajoute {product} à la liste de courses {list_number}"
+      # English commands
+      - "Add {product} to [my] shopping list"
+      - "Put {product} on [my] shopping list"
+      - "I need {product}"
+      - "Add {product} to shopping list {list_number}"
+      # Spanish commands
+      - "Agrega {product} a [mi] lista de compras"
+      - "Pon {product} en [mi] lista de compras"
+      - "Necesito {product}"
+      - "Agrega {product} a la lista de compras {list_number}"
+      # Choice selection commands
+      - "Choix {choice_number}"
+      - "Le {choice_number}"
+      - "Numéro {choice_number}"
+      - "{choice_number}"
+      - "Choice {choice_number}"
+      - "Number {choice_number}"
+      - "Option {choice_number}"
+      - "Opción {choice_number}"
+      - "Número {choice_number}"
+      - "El {choice_number}"
+  - platform: event
+    event_type: grocy_voice_product_added
+  - platform: event
+    event_type: grocy_voice_multiple_choices
+  - platform: event
+    event_type: grocy_voice_product_error
+
+action:
+  - variables:
+      product_name: "{{ trigger.slots.product | default('') }}"
+      list_number: "{{ trigger.slots.list_number | default(default_list) | int }}"
+      choice_number: "{{ trigger.slots.choice_number | default('') }}"
+      trigger_type: "{{ trigger.platform }}"
+      
+  - service: system_log.write
+    data:
+      message: "🛒 GROCY SMART: trigger={{ trigger_type }}, product='{{ product_name }}', choice='{{ choice_number }}'"
+      level: info
+
+  # Handle conversation triggers (voice commands)
+  - if:
+      - condition: template
+        value_template: "{{ trigger_type == 'conversation' }}"
+    then:
+      # Bloc 1 : choix par numéro
+      - if:
+          - condition: template
+            value_template: "{{ choice_number != '' }}"
+        then:
+          - service: shopping_list_with_grocy.select_choice_by_number
+            data:
+              choice_number: "{{ choice_number | int }}"
+            continue_on_error: true
+          - set_conversation_response: "Choix {{ choice_number }} sélectionné !"
+      # Bloc 2 : ajout produit si nom fourni
+      - if:
+          - condition: template
+            value_template: "{{ product_name != '' }}"
+        then:
+          - service: shopping_list_with_grocy.voice_add_product
+            data:
+              product_name: "{{ product_name }}"
+              shopping_list_id: "{{ list_number }}"
+            continue_on_error: true
+          - delay:
+              seconds: 4
+          - variables:
+              multiple_choices_data: "{{ state_attr('sensor.grocy_multiple_choices', 'recent_choices') or {} }}"
+              normalized_product_name: "{{ product_name | lower | trim }}"
+              has_choices: "{{ normalized_product_name in multiple_choices_data.keys() }}"
+          # Bloc 3 : choix multiples
+          - if:
+              - condition: template
+                value_template: "{{ has_choices }}"
+            then:
+              - variables:
+                  choices_list: >
+                    {% set choices = multiple_choices_data[normalized_product_name] %}
+                    {% set choice_key = choices['choice_key'] %}
+                    {% set matches = state_attr('todo.shopping_list_with_grocy_list_1', 'product_choices')[choice_key]['matches'] %}
+                    {% for i in range(matches | length) %}
+                      {{ i+1 }}. {{ matches[i]['name'] }}
+                    {% endfor %}
+              - set_conversation_response: >
+                  J'ai trouvé plusieurs choix pour {{ product_name }} :
+                  {{ choices_list }}
+                  Dites le numéro de votre choix, par exemple "Le 2".
+            else:
+              - set_conversation_response: "{{ product_name }} ajouté à votre liste de courses."
+      # Bloc 4 : fallback si aucun nom produit
+      - if:
+          - condition: template
+            value_template: "{{ product_name == '' and choice_number == '' }}"
+        then:
+          - set_conversation_response: "Je n'ai pas compris le nom du produit."
+    else:
+      # Handle event triggers (responses from voice_add_product service)
+      - if:
+          - condition: template
+            value_template: "{{ trigger.event.event_type == 'grocy_voice_product_added' }}"
+        then:
+          - set_conversation_response: "{{ trigger.event.data.message }}"
+        else:
+          - if:
+              - condition: template
+                value_template: "{{ trigger.event.event_type == 'grocy_voice_multiple_choices' }}"
+            then:
+              - set_conversation_response: "{{ trigger.event.data.message }}"
+            else:
+              - if:
+                  - condition: template
+                    value_template: "{{ trigger.event.event_type == 'grocy_voice_product_error' }}"
+                then:
+                  - set_conversation_response: "{{ trigger.event.data.message }}"
+
+mode: single
+max_exceeded: silent
