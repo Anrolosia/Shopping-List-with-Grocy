@@ -40,7 +40,53 @@
             "suggestions": {
                 "title": "Sugerencias de Compras de Grocy",
                 "card_hint": "¡Nuevas sugerencias de compra están disponibles! Revísalas en el panel de [Sugerencias de Compra]({url})."
+            },
+            "choice_success": {
+                "title": "✅ Producto Seleccionado",
+                "message": "Opción {choice_number}: {product_name} añadido a tu lista de compras!"
+            },
+            "no_choices": {
+                "title": "❌ Sin Opciones Disponibles",
+                "message": "Las opciones de productos han expirado. Por favor, realiza una nueva búsqueda por voz."
+            },
+            "invalid_choice": {
+                "title": "❌ Opción Inválida",
+                "message": "La opción {choice_number} es inválida. Por favor, selecciona entre 1 y {max_choices}."
+            },
+            "multiple_matches": {
+                "title": "🔍 Múltiples Opciones Encontradas",
+                "message": "Se encontraron múltiples productos para '{product_name}':\n\n{choices_list}\n\nUsa el servicio shopping_list_with_grocy.select_choice_by_number con el número de tu elección."
+            },
+            "product_created": {
+                "title": "Nuevo producto creado",
+                "message": "El producto '{product_name}' fue creado automáticamente en Grocy (ID: {product_id})"
             }
+        },
+        "todo": {
+            "product_selected_title": "✅ Producto Seleccionado",
+            "product_added": "Opción {choice}: ¡{product} añadido a tu lista de compras!",
+            "multiple_choice_title": "Múltiples opciones para '{term}'",
+            "multiple_choice_message": "Múltiples productos coinciden con tu solicitud:\n\n{options}\n\n📋 Para añadir, ve a Herramientas de Desarrollador → Servicios y copia-pega:\n\n{yaml}"
+        },
+        "voice_responses": {
+            "no_choices": "No hay opciones disponibles. Las opciones anteriores han expirado, por favor realiza una nueva búsqueda.",
+            "invalid_choice": "Opción {choice_number} inválida. Las opciones disponibles son del 1 al {max_choices}. Por favor repite tu elección.",
+            "product_added": "¡{product_name} (x{quantity}) añadido a tu lista de compras!",
+            "selection_error": "Error al seleccionar la opción {choice_number}. Por favor inténtalo de nuevo.",
+            "add_error": "Error al añadir {product_name}.",
+            "no_product_name": "No entendí el nombre del producto.",
+            "multiple_choices_detailed": "Se encontraron múltiples productos para {product_name} (x{quantity}). Tus opciones son:\n{choices_list}.\nDi 'opción' seguido del número de tu elección.",
+            "multiple_choices_simple": "Se encontraron múltiples opciones para {product_name} (x{quantity}), consulta la aplicación.",
+            "product_success": "¡{product_name} (x{quantity}) añadido a tu lista de compras!",
+            "product_error": "Error al añadir {product_name}",
+            "multiple_choices_voice": "Encontré {count} opciones para {product_name}: {choices_text}. Di el número de tu elección, por ejemplo 'Opción 2'.",
+            "create_new_product": "🆕 Crear '{product_name}' como nuevo producto",
+            "product_created": "✅ {product_name} (x{quantity}) creado y añadido a tu lista de compras!",
+            "product_created_notification_title": "Nuevo producto creado",
+            "product_created_notification_message": "El producto '{product_name}' fue creado automáticamente en Grocy (ID: {product_id})",
+            "choice_number": "número",
+            "no_choice_input": "No se proporcionó entrada de voz para la elección.",
+            "invalid_voice_choice": "No entendí '{voice_input}'. Di un número del 1 al 5, por ejemplo 'opción uno' o 'número dos'."
         }
     }
 }

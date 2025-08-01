@@ -47,7 +47,6 @@ async def async_setup_frontend(hass: HomeAssistant) -> None:
     if PANEL_NAME not in hass.data.get(DOMAIN, {}).get("panels", []):
         try:
             module_url = f"{static_url_path}/suggestion-card.js?t={int(time.time())}"
-            LOGGER.info("Registering panel with module URL: %s", module_url)
 
             language = hass.config.language
             sidebar_title_translations = {
@@ -73,8 +72,6 @@ async def async_setup_frontend(hass: HomeAssistant) -> None:
             if "panels" not in hass.data[DOMAIN]:
                 hass.data[DOMAIN]["panels"] = []
             hass.data[DOMAIN]["panels"].append(PANEL_NAME)
-
-            LOGGER.info("Successfully registered Shopping Suggestions panel")
         except Exception as e:
             LOGGER.error("Failed to register panel: %s", str(e))
 
@@ -84,4 +81,3 @@ async def async_unload_frontend(hass: HomeAssistant) -> None:
     if PANEL_NAME in hass.data.get(DOMAIN, {}).get("panels", []):
         hass.components.frontend.async_remove_panel(PANEL_NAME)
         hass.data[DOMAIN]["panels"].remove(PANEL_NAME)
-        LOGGER.info("Removed Shopping Suggestions panel")

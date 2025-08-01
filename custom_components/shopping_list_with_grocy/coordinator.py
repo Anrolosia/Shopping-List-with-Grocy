@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from datetime import timedelta
 
 from async_timeout import timeout
@@ -55,7 +56,65 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         await self.retrieve_data(True)
         return self.data
 
+    async def _cleanup_orphaned_choices(self) -> None:
+        """Clean up orphaned product choices older than 2 minutes."""
+        if DOMAIN not in self.hass.data:
+            return
+
+        current_time = time.time()
+        cleanup_threshold = 2 * 60  # 2 minutes in seconds
+        cleaned_something = False
+
+        product_choices = self.hass.data.get(DOMAIN, {}).get("product_choices", {})
+        if product_choices:
+            keys_to_remove = []
+            for choice_key, choice_data in product_choices.items():
+                choice_timestamp = choice_data.get("timestamp", 0)
+                age_seconds = current_time - choice_timestamp
+                if age_seconds > cleanup_threshold:
+                    keys_to_remove.append(choice_key)
+
+            for key in keys_to_remove:
+                del product_choices[key]
+                cleaned_something = True
+
+        recent_choices = self.hass.data.get(DOMAIN, {}).get(
+            "recent_multiple_choices", {}
+        )
+        if recent_choices:
+            keys_to_remove = []
+            for choice_key, choice_data in recent_choices.items():
+                choice_timestamp = choice_data.get("timestamp", 0)
+                age_seconds = current_time - choice_timestamp
+                if age_seconds > cleanup_threshold:
+                    keys_to_remove.append(choice_key)
+
+            for key in keys_to_remove:
+                del recent_choices[key]
+                cleaned_something = True
+
+        voice_responses = self.hass.data.get(DOMAIN, {}).get("voice_responses", {})
+        if voice_responses:
+            keys_to_remove = []
+            for response_key, response_data in voice_responses.items():
+                response_timestamp = response_data.get("timestamp", 0)
+                age_seconds = current_time - response_timestamp
+                if age_seconds > cleanup_threshold:
+                    keys_to_remove.append(response_key)
+
+            for key in keys_to_remove:
+                del voice_responses[key]
+                cleaned_something = True
+
+        if cleaned_something:
+            from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+            async_dispatcher_send(self.hass, "grocy_multiple_choices_updated")
+
     async def retrieve_data(self, force=False):
+
+        await self._cleanup_orphaned_choices()
+
         try:
             paused = is_update_paused(self.hass)
 

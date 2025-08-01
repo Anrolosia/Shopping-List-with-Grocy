@@ -6,9 +6,9 @@
                 "analysis_progress": "Analyse en cours...",
                 "no_analysis": "Aucune suggestion disponible pour le moment. Cliquez sur le bouton d'actualisation pour analyser vos besoins d'achats.",
                 "no_matches": "Aucun produit ne correspond aux critères d'analyse actuels",
-                "refresh": "Rafraîchir les Suggestions",
-                "add_all": "Ajouter la Sélection",
-                "add_all_count": "Ajouter la Sélection ({count})",
+                "refresh": "Actualiser les Suggestions",
+                "add_all": "Ajouter Sélectionnés",
+                "add_all_count": "Ajouter Sélectionnés ({count})",
                 "quantity": {
                     "increase": "Augmenter la quantité",
                     "decrease": "Diminuer la quantité",
@@ -26,21 +26,67 @@
             "restart_required": {
                 "setup": {
                     "title": "Redémarrage Requis - Shopping List with Grocy",
-                    "message": "Veuillez redémarrer Home Assistant pour que l'intégration Shopping List with Grocy fonctionne correctement.\n\nVous pouvez redémarrer depuis Paramètres > Système > Redémarrer ou utiliser Outils de développement > YAML."
+                    "message": "Veuillez redémarrer Home Assistant pour que l'intégration Shopping List with Grocy fonctionne correctement.\n\nVous pouvez redémarrer depuis Paramètres > Système > Redémarrer ou utiliser les Outils de développement > YAML."
                 },
                 "settings": {
                     "title": "Redémarrage Requis - Shopping List with Grocy",
-                    "message": "Veuillez redémarrer Home Assistant pour que les modifications de l'API prennent effet.\n\nVous pouvez redémarrer depuis Paramètres > Système > Redémarrer ou utiliser Outils de développement > YAML."
+                    "message": "Veuillez redémarrer Home Assistant pour que les changements d'API prennent effet.\n\nVous pouvez redémarrer depuis Paramètres > Système > Redémarrer ou utiliser les Outils de développement > YAML."
                 },
                 "analysis": {
                     "title": "Redémarrage Requis - Shopping List with Grocy",
-                    "message": "Veuillez redémarrer Home Assistant pour appliquer les nouveaux paramètres d'analyse.\n\nVous pouvez redémarrer depuis Paramètres > Système > Redémarrer ou utiliser Outils de développement > YAML."
+                    "message": "Veuillez redémarrer Home Assistant pour appliquer la nouvelle configuration d'analyse.\n\nVous pouvez redémarrer depuis Paramètres > Système > Redémarrer ou utiliser les Outils de développement > YAML."
                 }
             },
             "suggestions": {
                 "title": "Suggestions d'Achats Grocy",
                 "card_hint": "De nouvelles suggestions d'achats sont disponibles ! Consultez-les dans le panneau [Suggestions d'Achats]({url})."
+            },
+            "choice_success": {
+                "title": "✅ Produit Sélectionné",
+                "message": "Choix {choice_number} : {product_name} ajouté à votre liste de courses !"
+            },
+            "no_choices": {
+                "title": "❌ Aucun Choix Disponible",
+                "message": "Les choix de produits ont expiré. Veuillez faire une nouvelle recherche vocale."
+            },
+            "invalid_choice": {
+                "title": "❌ Choix Invalide",
+                "message": "Le choix {choice_number} est invalide. Veuillez sélectionner entre 1 et {max_choices}."
+            },
+            "multiple_matches": {
+                "title": "🔍 Options Multiples Trouvées",
+                "message": "Plusieurs produits trouvés pour '{product_name}' :\n\n{choices_list}\n\nUtilisez le service shopping_list_with_grocy.select_choice_by_number avec le numéro de votre choix."
+            },
+            "product_created": {
+                "title": "Nouveau produit créé",
+                "message": "Le produit '{product_name}' a été créé automatiquement dans Grocy (ID: {product_id})"
             }
+        },
+        "todo": {
+            "product_selected_title": "✅ Produit Sélectionné",
+            "product_added": "Choix {choice} : {product} ajouté à votre liste de courses !",
+            "multiple_choice_title": "Choix multiples pour '{term}'",
+            "multiple_choice_message": "Plusieurs produits correspondent à votre demande :\n\n{options}\n\n📋 Pour ajouter, allez dans Outils de développement → Services et copiez-collez :\n\n{yaml}"
+        },
+        "voice_responses": {
+            "no_choices": "Aucun choix disponible. Les choix précédents ont expiré, veuillez effectuer une nouvelle recherche.",
+            "invalid_choice": "Choix {choice_number} invalide. Les choix disponibles vont de 1 à {max_choices}. Veuillez répéter votre choix.",
+            "product_added": "{product_name} (x{quantity}) ajouté à votre liste de courses !",
+            "selection_error": "Erreur lors de la sélection du choix {choice_number}. Veuillez réessayer.",
+            "add_error": "Erreur lors de l'ajout de {product_name}.",
+            "no_product_name": "Je n'ai pas compris le nom du produit.",
+            "multiple_choices_detailed": "Plusieurs produits trouvés pour {product_name} (x{quantity}). Vos options sont :\n{choices_list}.\nDites 'choix' suivi du numéro de votre choix.",
+            "multiple_choices_simple": "Plusieurs choix trouvés pour {product_name} (x{quantity}), consultez l'application.",
+            "product_success": "{product_name} (x{quantity}) ajouté à votre liste de courses !",
+            "product_error": "Erreur lors de l'ajout de {product_name}",
+            "multiple_choices_voice": "J'ai trouvé {count} choix pour {product_name}: {choices_text}. Dites le numéro de votre choix, par exemple 'Choix 2'.",
+            "create_new_product": "🆕 Créer '{product_name}' comme nouveau produit",
+            "product_created": "✅ {product_name} (x{quantity}) créé et ajouté à votre liste de courses !",
+            "product_created_notification_title": "Nouveau produit créé",
+            "product_created_notification_message": "Le produit '{product_name}' a été créé automatiquement dans Grocy (ID: {product_id})",
+            "choice_number": "numéro",
+            "no_choice_input": "Aucune entrée vocale fournie pour le choix.",
+            "invalid_voice_choice": "Je n'ai pas compris '{voice_input}'. Dites un chiffre de 1 à 5, par exemple 'choix un' ou 'le deux'."
         }
     }
 }

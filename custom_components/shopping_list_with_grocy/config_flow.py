@@ -94,6 +94,9 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     "verify_ssl": user_input.get("verify_ssl", True),
                     "disable_timeout": user_input.get("disable_timeout", False),
                     "image_download_size": user_input.get("image_download_size", 100),
+                    "enable_bidirectional_sync": user_input.get(
+                        "enable_bidirectional_sync", False
+                    ),
                     "unique_id": self.options.get("unique_id"),
                     CONF_ANALYSIS_SETTINGS: self.options.get(
                         CONF_ANALYSIS_SETTINGS,
@@ -108,6 +111,11 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
 
                 old_api_url = self.options.get("api_url")
                 old_api_key = self.options.get("api_key")
+                old_bidirectional_sync = self.options.get(
+                    "enable_bidirectional_sync", False
+                )
+                old_disable_timeout = self.options.get("disable_timeout", False)
+                old_image_size = self.options.get("image_download_size", 100)
 
                 settings_changed = (
                     old_api_url
@@ -115,6 +123,11 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     and (
                         old_api_url != user_input["api_url"]
                         or old_api_key != user_input["api_key"]
+                        or old_bidirectional_sync
+                        != user_input.get("enable_bidirectional_sync", False)
+                        or old_disable_timeout
+                        != user_input.get("disable_timeout", False)
+                        or old_image_size != user_input.get("image_download_size", 100)
                     )
                 )
                 first_time_setup = not (old_api_url and old_api_key)
@@ -150,6 +163,10 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         "image_download_size",
                         default=self.options.get("image_download_size", 100),
                     ): vol.All(vol.Coerce(int), vol.In([0, 50, 100, 150, 200])),
+                    vol.Optional(
+                        "enable_bidirectional_sync",
+                        default=self.options.get("enable_bidirectional_sync", False),
+                    ): bool,
                     vol.Optional("show_advanced", default=False): bool,
                 }
             ),

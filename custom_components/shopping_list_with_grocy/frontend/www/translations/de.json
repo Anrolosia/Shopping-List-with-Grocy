@@ -1,0 +1,80 @@
+{
+  "shopping_list_with_grocy": {
+    "notifications": {
+      "restart_required": {
+        "setup": {
+          "title": "Neustart Erforderlich - Shopping List with Grocy",
+          "message": "Bitte starten Sie Home Assistant neu, damit die Shopping List with Grocy Integration ordnungsgemäß funktioniert.\n\nSie können über Einstellungen > System > Neustart oder über Entwicklertools > YAML neu starten."
+        },
+        "settings": {
+          "title": "Neustart Erforderlich - Shopping List with Grocy", 
+          "message": "Bitte starten Sie Home Assistant neu, damit die API-Änderungen wirksam werden.\n\nSie können über Einstellungen > System > Neustart oder über Entwicklertools > YAML neu starten."
+        },
+        "analysis": {
+          "title": "Neustart Erforderlich - Shopping List with Grocy",
+          "message": "Bitte starten Sie Home Assistant neu, um die neuen Analyseeinstellungen anzuwenden.\n\nSie können über Einstellungen > System > Neustart oder über Entwicklertools > YAML neu starten."
+        }
+      },
+      "suggestions": {
+        "title": "Grocy Einkaufsvorschläge",
+        "card_hint": "Neue Einkaufsvorschläge sind verfügbar! Sehen Sie sie im Dashboard-Panel für Einkaufsvorschläge."
+      },
+      "choice_success": {
+        "title": "✅ Produkt Ausgewählt",
+        "message": "Auswahl {choice_number}: {product_name} zu Ihrer Einkaufsliste hinzugefügt!"
+      },
+      "no_choices": {
+        "title": "❌ Keine Auswahl Verfügbar",
+        "message": "Die Produktauswahl ist abgelaufen. Bitte führen Sie eine neue Sprachsuche durch."
+      },
+      "invalid_choice": {
+        "title": "❌ Ungültige Auswahl",
+        "message": "Die Auswahl {choice_number} ist ungültig. Bitte wählen Sie zwischen 1 und {max_choices}."
+      },
+      "multiple_matches": {
+        "title": "🔍 Mehrere Optionen Gefunden",
+        "message": "Mehrere Produkte für '{product_name}' gefunden:\n\n{choices_list}\n\nVerwenden Sie den Service shopping_list_with_grocy.select_choice_by_number mit der Nummer Ihrer Wahl."
+      },
+      "product_created": {
+        "title": "Neues Produkt erstellt",
+        "message": "Produkt '{product_name}' wurde automatisch in Grocy erstellt (ID: {product_id})"
+      }
+    },
+    "todo": {
+      "product_selected_title": "✅ Produkt Ausgewählt",
+      "product_added": "Auswahl {choice}: {product} zu Ihrer Einkaufsliste hinzugefügt!",
+      "multiple_choice_title": "Mehrfachauswahl für '{term}'",
+      "multiple_choice_message": "Mehrere Produkte entsprechen Ihrer Anfrage:\n\n{options}\n\n📋 Zum Hinzufügen gehen Sie zu Entwicklertools → Services und kopieren Sie:\n\n{yaml}"
+    },
+    "voice_responses": {
+      "no_choices": "Keine Auswahl verfügbar. Vorherige Auswahlmöglichkeiten sind abgelaufen, bitte führen Sie eine neue Suche durch.",
+      "invalid_choice": "Auswahl {choice_number} ungültig. Verfügbare Auswahlmöglichkeiten sind von 1 bis {max_choices}. Bitte wiederholen Sie Ihre Auswahl.",
+      "product_added": "{product_name} (x{quantity}) zu Ihrer Einkaufsliste hinzugefügt!",
+      "selection_error": "Fehler bei der Auswahl von {choice_number}. Bitte versuchen Sie es erneut.",
+      "add_error": "Fehler beim Hinzufügen von {product_name}.",
+      "no_product_name": "Ich habe den Produktnamen nicht verstanden.",
+      "multiple_choices_detailed": "Mehrere Produkte für {product_name} (x{quantity}) gefunden. Ihre Optionen sind:\n{choices_list}.\nSagen Sie 'Auswahl' gefolgt von der Nummer Ihrer Wahl.",
+      "multiple_choices_simple": "Mehrere Auswahlmöglichkeiten für {product_name} (x{quantity}) gefunden, schauen Sie in die App.",
+      "product_success": "{product_name} (x{quantity}) zu Ihrer Einkaufsliste hinzugefügt!",
+      "product_error": "Fehler beim Hinzufügen von {product_name}",
+      "multiple_choices_voice": "Ich habe {count} Auswahlmöglichkeiten für {product_name} gefunden: {choices_text}. Sagen Sie die Nummer Ihrer Wahl, zum Beispiel 'Auswahl 2'.",
+      "create_new_product": "🆕 '{product_name}' als neues Produkt erstellen",
+      "product_created": "✅ {product_name} (x{quantity}) erstellt und zur Einkaufsliste hinzugefügt!",
+      "product_created_notification_title": "Neues Produkt erstellt",
+      "product_created_notification_message": "Produkt '{product_name}' wurde automatisch in Grocy erstellt (ID: {product_id})",
+      "choice_number": "nummer",
+      "no_choice_input": "Keine Spracheingabe für die Auswahl bereitgestellt.",
+      "invalid_voice_choice": "Ich habe '{voice_input}' nicht verstanden. Sagen Sie eine Zahl von 1 bis 5, zum Beispiel 'Auswahl eins' oder 'Nummer zwei'."
+    },
+    "smart_voice_assistant": {
+      "add_success": "✅ {product} wurde zur Einkaufsliste hinzugefügt",
+      "add_error": "❌ Fehler beim Hinzufügen von {product}",
+      "multiple_choices": "🔍 Mehrere Optionen für '{product}' gefunden:\n{choices}\n\nSagen Sie \"Auswahl [Nummer]\" um zu wählen.",
+      "choice_success": "✅ {product} ausgewählt und zur Liste hinzugefügt",
+      "choice_error": "❌ Ungültige Auswahl oder Fehler",
+      "no_choices": "❌ Keine passenden Produkte für '{product}' gefunden",
+      "invalid_choice": "❌ Ungültige Auswahlnummer: {choice}",
+      "no_active_choices": "❌ Keine aktiven Auswahlmöglichkeiten verfügbar"
+    }
+  }
+}

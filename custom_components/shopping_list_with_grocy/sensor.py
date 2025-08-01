@@ -20,6 +20,78 @@ LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=60)
 
 
+class GrocyMultipleChoicesSensor(SensorEntity):
+    """Sensor that tracks recent multiple choice events for voice assistants."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the sensor."""
+        self.hass = hass
+        self._attr_name = "Grocy Multiple Choices"
+        self._attr_unique_id = "grocy_multiple_choices"
+        self._attr_icon = "mdi:format-list-numbered"
+        self._event_unsub = None
+
+    async def async_added_to_hass(self):
+        """Register dispatcher signal listener when entity is added to hass."""
+        from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+        if self._event_unsub is None:
+            self._event_unsub = async_dispatcher_connect(
+                self.hass,
+                "grocy_multiple_choices_updated",
+                self._handle_multiple_choices_event,
+            )
+
+    async def async_will_remove_from_hass(self):
+        """Unregister dispatcher signal listener when entity is removed from hass."""
+        if self._event_unsub is not None:
+            self._event_unsub()
+            self._event_unsub = None
+
+    async def _handle_multiple_choices_event(self, event=None):
+
+        self.async_write_ha_state()
+
+    @property
+    def state(self) -> str:
+        """Return the state of the sensor."""
+        import time
+
+        current_time = time.time()
+
+        recent_choices = self.hass.data.get(DOMAIN, {}).get(
+            "recent_multiple_choices", {}
+        )
+
+        valid_choices = {
+            product_name: choice_data
+            for product_name, choice_data in recent_choices.items()
+            if current_time - choice_data.get("timestamp", 0) < 300
+        }
+
+        if valid_choices:
+            return "multiple_found"
+        return "none"
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        recent_choices = self.hass.data.get(DOMAIN, {}).get(
+            "recent_multiple_choices", {}
+        )
+        import time
+
+        current_time = time.time()
+
+        valid_choices = {
+            product_name: choice_data
+            for product_name, choice_data in recent_choices.items()
+            if current_time - choice_data.get("timestamp", 0) < 300
+        }
+
+        return {"recent_choices": valid_choices, "choice_count": len(valid_choices)}
+
+
 class GrocyShoppingSuggestionsSensor(SensorEntity):
     """Representation of a Sensor that holds shopping suggestions."""
 
@@ -71,11 +143,6 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
 
             time_diff = now - last_update
             if time_diff >= timedelta(hours=1):
-                LOGGER.info(
-                    "Auto-resetting shopping suggestions after %s (1 hour threshold exceeded)",
-                    time_diff,
-                )
-
                 self.hass.data[DOMAIN]["suggestions"] = {
                     "products": [],
                     "last_update": None,
@@ -84,7 +151,6 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
                 self.async_write_ha_state()
             else:
                 remaining = timedelta(hours=1) - time_diff
-                LOGGER.debug("Shopping suggestions will auto-reset in %s", remaining)
 
         except (ValueError, TypeError) as e:
             LOGGER.warning("Error parsing last_update time for auto-reset: %s", e)
@@ -112,7 +178,9 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform."""
 
-    async_add_entities([GrocyShoppingSuggestionsSensor(hass)])
+    async_add_entities(
+        [GrocyShoppingSuggestionsSensor(hass), GrocyMultipleChoicesSensor(hass)]
+    )
 
     entity_registry = async_get(hass)
 
@@ -122,26 +190,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         hass.states.async_remove(old_entity_id)
 
     if hass.states.get(old_entity_id):
-        LOGGER.warning(
-            "Failed to remove %s from Home Assistant states. Retrying...", old_entity_id
-        )
         hass.states.async_remove(old_entity_id)
 
     if DOMAIN not in hass.data:
-        LOGGER.error(
-            "Domain %s not found in hass.data! Available keys: %s",
-            DOMAIN,
-            list(hass.data.keys()),
-        )
         return
 
     if config_entry.entry_id not in hass.data[DOMAIN]:
-        LOGGER.error(
-            "Entry ID %s not found in hass.data[%s]! Available keys: %s",
-            config_entry.entry_id,
-            DOMAIN,
-            list(hass.data[DOMAIN].keys()),
-        )
         return
 
     if "entities" not in hass.data[DOMAIN]:
@@ -150,7 +204,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     if not coordinator:
-        LOGGER.error("No coordinator found in hass.data[DOMAIN]. Todo setup aborted.")
         return
 
     if config_entry.options is None or len(config_entry.options) == 0:
@@ -194,12 +247,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         expected_entity_id = f"sensor.{sensor._attr_unique_id}"
 
         if current_entity_id != expected_entity_id:
-            LOGGER.warning(
-                "Entity ID mismatch: Expected %s but got %s. Attempting correction...",
-                expected_entity_id,
-                current_entity_id,
-            )
-
             sensor.entity_id = expected_entity_id
             sensor.async_write_ha_state()
 
@@ -327,9 +374,17 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
 
+        async_dispatcher_connect(
+            self.hass, "grocy_multiple_choices_force_update", self._force_update
+        )
+
     @property
     def icon(self):
         return "mdi:cart"
+
+    async def _force_update(self):
+        """Callback to force update of HA state."""
+        await self.async_update_ha_state(force_refresh=True)
 
 
 class GrocyShoppingListSensor(CoordinatorEntity, SensorEntity):
@@ -377,11 +432,6 @@ class GrocyShoppingListSensor(CoordinatorEntity, SensorEntity):
             registry_entry
             and registry_entry.entity_id != f"sensor.{self._attr_unique_id}"
         ):
-            LOGGER.warning(
-                "⚠️ Entity ID mismatch: Expected %s but got %s. Correcting...",
-                f"sensor.{self._attr_unique_id}",
-                registry_entry.entity_id,
-            )
             entity_registry.async_update_entity(
                 registry_entry.entity_id, new_entity_id=f"sensor.{self._attr_unique_id}"
             )

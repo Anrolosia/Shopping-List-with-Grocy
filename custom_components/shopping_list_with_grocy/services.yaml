@@ -1,5 +1,22 @@
 refresh_products:
 
+search_products:
+  fields:
+    search_term:
+      example: "milk"
+      required: true
+      selector:
+        text:
+    max_results:
+      example: 5
+      required: false
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          mode: box
+
 add_product:
   fields:
     product_id:
@@ -64,3 +81,114 @@ reset_suggestions:
   name: Reset Shopping Suggestions
   description: >
     Clear current shopping suggestions and reset the sensor to show "Analysis in progress..." state.
+
+test_bidirectional_sync:
+  name: Test Bidirectional Sync
+  description: >
+    Test the bidirectional sync functionality without enabling it permanently. 
+    This will validate that the sync is working correctly with a specific product name and display the results in logs and notifications.
+  fields:
+    product_name:
+      name: Product Name
+      description: Name of the product to test with (will test search, creation, and handling logic)
+      example: "Lait"
+      required: false
+      default: "Test Product"
+      selector:
+        text:
+    shopping_list_id:
+      name: Shopping List ID
+      description: Grocy shopping list ID to test with
+      example: 1
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          mode: box
+
+emergency_stop_sync:
+  name: Emergency Stop Sync
+  description: >
+    Immediately stop bidirectional synchronization between Home Assistant and Grocy shopping lists.
+    This is useful if sync is causing issues or unwanted behavior.
+  fields:
+    reason:
+      name: Stop Reason
+      description: Reason for the emergency stop (for logging purposes)
+      example: "Sync causing data loss"
+      required: false
+      default: "Manual emergency stop"
+      selector:
+        text:
+
+restart_sync:
+  name: Restart Sync
+  description: >
+    Restart bidirectional synchronization after it has been stopped.
+    This will re-enable sync between Home Assistant and Grocy shopping lists.
+
+choose_product:
+  name: Choose Product
+  description: >
+    Select a specific product when multiple matches are found during bidirectional sync.
+    This service is typically called after receiving a "multiple matches" notification.
+  fields:
+    choice_key:
+      name: Choice Key
+      description: The choice key provided in the multiple matches notification
+      example: "product_choice_1640995200"
+      required: true
+      selector:
+        text:
+    product_id:
+      name: Product ID
+      description: The Grocy product ID to select from the available matches
+      example: 123
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+select_choice_by_number:
+  name: Select Choice by Number
+  description: >
+    Select a product from multiple matches by simply providing the choice number (1-5).
+    This is easier than using choose_product as you don't need the choice_key.
+    Perfect for voice automation!
+  fields:
+    choice_number:
+      name: Choice Number
+      description: The number of the choice to select (1-5, as shown in the notification)
+      example: 2
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: box
+
+voice_add_product:
+  name: Voice Add Product
+  description: >
+    Add a product to shopping list with proper voice feedback for multiple choices.
+    This service is designed for voice assistants and will fire events with appropriate responses.
+  fields:
+    product_name:
+      name: Product Name
+      description: The name of the product to add
+      example: "milk"
+      required: true
+      selector:
+        text:
+    shopping_list_id:
+      name: Shopping List ID
+      description: The ID of the shopping list to add to
+      example: 1
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          mode: box

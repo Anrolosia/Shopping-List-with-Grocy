@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from datetime import timedelta
 
 from homeassistant.components.todo import (
@@ -11,7 +12,7 @@ from homeassistant.components.todo import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_registry import async_get
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import (
@@ -22,6 +23,7 @@ from homeassistant.helpers.update_coordinator import (
 from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
 from .const import DOMAIN
 from .coordinator import ShoppingListWithGrocyCoordinator
+from .frontend_translations import async_load_frontend_translations, get_todo_strings
 
 LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=15)
@@ -33,9 +35,6 @@ class ShoppingListWithGrocyTodoListEntity(
     """A To-do List representation of a Shopping with Grocy List."""
 
     _attr_has_entity_name = True
-    _attr_supported_features = (
-        TodoListEntityFeature.UPDATE_TODO_ITEM | TodoListEntityFeature.DELETE_TODO_ITEM
-    )
 
     def __init__(
         self,
@@ -44,7 +43,6 @@ class ShoppingListWithGrocyTodoListEntity(
         data: dict,
         list_prefix: str = "",
     ):
-        """Initialize the Shopping with Grocy Todo List Entity."""
         super().__init__(coordinator)
         self.hass = hass
         self.coordinator = coordinator
@@ -58,6 +56,8 @@ class ShoppingListWithGrocyTodoListEntity(
         self.entity_id = f"todo.{DOMAIN}_list_{self._list_id}"
         self.hass.data[DOMAIN]["shopping_lists"].append(self._list_id)
 
+        self._update_supported_features()
+
         LOGGER.debug(
             "Initialized ShoppingListWithGrocyTodoListEntity: name='%s', unique_id='%s', entity_id='%s'",
             self._attr_name,
@@ -65,72 +65,73 @@ class ShoppingListWithGrocyTodoListEntity(
             self.entity_id,
         )
 
-    async def async_delete_todo_items(self, uids: list[str]) -> None:
-        """Delete todo items from Grocy and update local state."""
-        LOGGER.debug("Deleting %d items from list %s", len(uids), self._list_id)
-
-        self._data["products"] = [
-            product
-            for product in self._data.get("products", [])
-            if product["shop_list_id"] not in uids
-        ]
-
-        self.async_write_ha_state()
-
-        tasks = [
-            self.api.remove_product_from_shopping_list(item_id) for item_id in uids
-        ]
-
-        try:
-            await asyncio.gather(*tasks)
-            LOGGER.debug("Successfully deleted %d items", len(uids))
-        except Exception as e:
-            LOGGER.error("Failed to delete items: %s", e)
-
-        await self.coordinator.async_refresh()
-
-    async def async_update_todo_item(self, item: TodoItem) -> None:
-        """Update a todo item in Grocy and update local state."""
-        LOGGER.debug("Updating item '%s' in list '%s'", item.uid, self._list_id)
-
-        checked = item.status == TodoItemStatus.COMPLETED
-
-        for product in self._data.get("products", []):
-            if str(product["shop_list_id"]) == str(item.uid):
-                product["status"] = (
-                    TodoItemStatus.COMPLETED if checked else TodoItemStatus.NEEDS_ACTION
-                )
-                break
-
-        self.async_write_ha_state()
-
-        try:
-            await self.api.update_grocy_shoppinglist_product(
-                item.uid, "1" if checked else "0"
-            )
-            LOGGER.debug("Successfully updated item %s", item.uid)
-        except Exception as e:
-            LOGGER.error("Failed to update item %s: %s", item.uid, e)
-
-        self.hass.async_create_task(self.coordinator.async_refresh())
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success
 
     def _handle_coordinator_update(self) -> None:
-        """Handle data updates from coordinator."""
-        shopping_lists = self.coordinator.api.build_item_list(self.coordinator.data)
-        shopping_list = next(
-            (lst for lst in shopping_lists if lst["id"] == self._list_id), None
-        )
+        """Handle updated data from the coordinator."""
+        LOGGER.debug("Coordinator update received for Todo entity %s", self.entity_id)
 
-        if shopping_list:
-            self._data = shopping_list
-            new_name = f"{self._list_prefix} {shopping_list['name'] or f'List #{shopping_list['id']}'}".strip()
-            if self._attr_name != new_name:
-                self._attr_name = new_name
+        shopping_lists_data = self.coordinator.data.get("shopping_lists_data", [])
+        if shopping_lists_data:
+
+            for list_data in shopping_lists_data:
+                if str(list_data.get("id")) == str(self._list_id):
+                    self._data = list_data
+                    LOGGER.debug(
+                        "Updated _data for list %s with %d products",
+                        self._list_id,
+                        len(list_data.get("products", [])),
+                    )
+                    break
+        else:
+
+            shopping_lists = self.coordinator.api.build_item_list(self.coordinator.data)
+            shopping_list = next(
+                (lst for lst in shopping_lists if lst["id"] == self._list_id), None
+            )
+            if shopping_list:
+                self._data = shopping_list
+                new_name = f"{self._list_prefix} {shopping_list['name'] or f'List #{shopping_list['id']}'}".strip()
+                if self._attr_name != new_name:
+                    self._attr_name = new_name
 
         super()._handle_coordinator_update()
 
+    def _update_supported_features(self):
+        config_entry = None
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            config_entry = entry
+            break
+
+        bidirectional_sync_enabled = False
+        if config_entry:
+            config = config_entry.options or config_entry.data
+            bidirectional_sync_enabled = config.get("enable_bidirectional_sync", False)
+
+        base_features = (
+            TodoListEntityFeature.UPDATE_TODO_ITEM
+            | TodoListEntityFeature.DELETE_TODO_ITEM
+        )
+
+        if bidirectional_sync_enabled:
+            self._attr_supported_features = (
+                base_features | TodoListEntityFeature.CREATE_TODO_ITEM
+            )
+            LOGGER.debug(
+                "Bidirectional sync enabled - CREATE_TODO_ITEM feature available"
+            )
+        else:
+            self._attr_supported_features = base_features
+            LOGGER.debug(
+                "Bidirectional sync disabled - CREATE_TODO_ITEM feature not available"
+            )
+
     @property
     def todo_items(self) -> list[TodoItem]:
+        """Return the current todo items."""
         return [
             TodoItem(
                 summary=product["name"],
@@ -140,118 +141,291 @@ class ShoppingListWithGrocyTodoListEntity(
             for product in self._data.get("products", [])
         ]
 
+    async def async_delete_todo_items(self, uids: list[str]) -> None:
+        """Delete todo items from Grocy and update local state."""
+        LOGGER.debug("Deleting %d items from list %s", len(uids), self._list_id)
+
+        self._data["products"] = [
+            product
+            for product in self._data.get("products", [])
+            if str(product["shop_list_id"]) not in uids
+        ]
+        self.async_write_ha_state()
+
+        tasks = [
+            self.api.remove_product_from_shopping_list(int(item_id)) for item_id in uids
+        ]
+        try:
+            await asyncio.gather(*tasks)
+            LOGGER.debug("Successfully deleted %d items", len(uids))
+        except Exception as e:
+            LOGGER.error("Failed to delete items: %s", e)
+
+        await self.coordinator.async_refresh()
+
     @property
-    def icon(self):
-        return "mdi:cart"
+    def extra_state_attributes(self):
+
+        return {
+            "product_choices": self.hass.data[DOMAIN].get("product_choices", {}),
+            "recent_multiple_choices": self.hass.data[DOMAIN].get(
+                "recent_multiple_choices", {}
+            ),
+        }
+
+    async def async_create_todo_item(self, item: TodoItem) -> None:
+        if getattr(self.api, "bidirectional_sync_stopped", False):
+            LOGGER.error("Bidirectional sync is stopped, cannot create item")
+            return
+
+        multiple_choice = False
+
+        try:
+            result = await self.api.handle_ha_todo_item_creation(
+                item.summary, shopping_list_id=self._list_id
+            )
+
+            LOGGER.debug("Full result on item '%s': %s", item.summary, result)
+            if result["success"]:
+                LOGGER.debug(
+                    "Successfully created item '%s' in Grocy via bidirectional sync",
+                    item.summary,
+                )
+                new_product = {
+                    "name": f"{result['product_name']} (x{result['quantity']})",
+                    "shop_list_id": f"temp_{result['product_id']}",
+                    "status": TodoItemStatus.NEEDS_ACTION,
+                }
+                if "products" not in self._data:
+                    self._data["products"] = []
+                self._data["products"].append(new_product)
+                self.async_write_ha_state()
+                await self.coordinator.async_refresh()
+
+                voice_mode = self.hass.data.get(DOMAIN, {}).get("voice_mode", False)
+                if not voice_mode:
+                    language = self.hass.config.language or "en"
+                    frontend_translations = await async_load_frontend_translations(
+                        self.hass, language
+                    )
+
+                    title = get_todo_strings(
+                        frontend_translations, "product_selected_title"
+                    )
+                    message_template = get_todo_strings(
+                        frontend_translations, "product_added"
+                    )
+                    message = message_template.format(
+                        choice=result.get("choice_number", ""),
+                        product=result["product_name"],
+                    )
+
+                    await self.hass.services.async_call(
+                        "persistent_notification",
+                        "create",
+                        {
+                            "title": title,
+                            "message": message,
+                            "notification_id": f"grocy_product_added_{int(time.time())}",
+                        },
+                    )
+
+            elif result["reason"] == "multiple_matches":
+                matches = result["matches"]
+                choice_key = f"product_choice_{int(time.time())}"
+                service_options = [
+                    f"{i}. {match['name']}" for i, match in enumerate(matches[:5], 1)
+                ]
+                service_options_text = "\n".join(service_options)
+
+                voice_mode = self.hass.data.get(DOMAIN, {}).get("voice_mode", False)
+                if not voice_mode:
+                    yaml_service = (
+                        "service: shopping_list_with_grocy.select_choice_by_number\n"
+                        "data:\n"
+                        "\u00A0\u00A0choice_number: [REPLACE_WITH_NUMBER_FROM_LIST_ABOVE]"
+                    )
+
+                    language = self.hass.config.language or "en"
+                    frontend_translations = await async_load_frontend_translations(
+                        self.hass, language
+                    )
+
+                    title_template = get_todo_strings(
+                        frontend_translations, "multiple_choice_title"
+                    )
+                    title = title_template.format(term=result["search_term"])
+
+                    message_template = get_todo_strings(
+                        frontend_translations, "multiple_choice_message"
+                    )
+                    message = message_template.format(
+                        options=service_options_text, yaml=yaml_service
+                    )
+
+                    await self.hass.services.async_call(
+                        "persistent_notification",
+                        "create",
+                        {
+                            "title": title,
+                            "message": message,
+                            "notification_id": f"grocy_multiple_matches_{int(time.time())}",
+                        },
+                    )
+
+                if "product_choices" not in self.hass.data[DOMAIN]:
+                    self.hass.data[DOMAIN]["product_choices"] = {}
+                self.hass.data[DOMAIN]["product_choices"][choice_key] = {
+                    "matches": matches,
+                    "original_name": result["search_term"],
+                    "quantity": result["quantity"],
+                    "shopping_list_id": result["shopping_list_id"],
+                    "timestamp": time.time(),
+                }
+
+                LOGGER.debug(
+                    "Before: hass.data[DOMAIN].keys() = %s",
+                    list(self.hass.data[DOMAIN].keys()),
+                )
+                if "recent_multiple_choices" not in self.hass.data[DOMAIN]:
+                    self.hass.data[DOMAIN]["recent_multiple_choices"] = {}
+                    LOGGER.debug(
+                        "recent_multiple_choices initialized in hass.data[DOMAIN]"
+                    )
+                else:
+                    LOGGER.debug(
+                        "recent_multiple_choices already exists: %s",
+                        self.hass.data[DOMAIN]["recent_multiple_choices"],
+                    )
+
+                normalized_name = result["search_term"].strip().lower()
+                LOGGER.debug("Storing choice for normalized_name='%s'", normalized_name)
+                self.hass.data[DOMAIN]["recent_multiple_choices"][normalized_name] = {
+                    "timestamp": time.time(),
+                    "matches_count": len(matches),
+                    "choice_key": choice_key,
+                }
+                LOGGER.debug(
+                    "After storing: recent_multiple_choices = %s",
+                    self.hass.data[DOMAIN]["recent_multiple_choices"],
+                )
+
+                await asyncio.sleep(0.1)
+                LOGGER.debug(
+                    "Sending dispatcher signal: grocy_multiple_choices_updated"
+                )
+                async_dispatcher_send(
+                    self.hass,
+                    "grocy_multiple_choices_updated",
+                    {"product_name": normalized_name, "matches_count": len(matches)},
+                )
+                LOGGER.debug("Dispatcher signal sent successfully")
+
+                self.async_write_ha_state()
+
+                voice_mode = self.hass.data.get(DOMAIN, {}).get("voice_mode", False)
+                if voice_mode:
+                    multiple_choice = True
+                    raise Exception(
+                        f"Multiple products found for '{result['search_term']}'. Please choose from: {', '.join([match['name'] for match in matches[:3]])}"
+                    )
+                else:
+                    return
+
+            else:
+                error_reason = result.get("reason", "unknown")
+                LOGGER.error(
+                    "❌ Failed to create item '%s': %s", item.summary, error_reason
+                )
+
+        except Exception as e:
+            if not multiple_choice:
+                LOGGER.error("Error creating todo item '%s': %s", item.summary, e)
+
+    async def async_update_todo_item(self, item: TodoItem) -> None:
+        """Update an existing todo item."""
+        LOGGER.debug(
+            "Updating todo item: %s (UID: %s, Status: %s)",
+            item.summary,
+            item.uid,
+            item.status,
+        )
+
+        try:
+
+            checked = item.status == TodoItemStatus.COMPLETED
+
+            for product in self._data.get("products", []):
+                if str(product["shop_list_id"]) == str(item.uid):
+                    product["status"] = (
+                        TodoItemStatus.COMPLETED
+                        if checked
+                        else TodoItemStatus.NEEDS_ACTION
+                    )
+                    break
+
+            self.async_write_ha_state()
+
+            try:
+                await self.api.update_grocy_shoppinglist_product(int(item.uid), checked)
+                LOGGER.debug(
+                    "Successfully updated item %s to status: %s",
+                    item.uid,
+                    "completed" if checked else "needs action",
+                )
+            except Exception as e:
+                LOGGER.error("Failed to update item %s in Grocy: %s", item.uid, e)
+
+                for product in self._data.get("products", []):
+                    if str(product["shop_list_id"]) == str(item.uid):
+                        product["status"] = (
+                            TodoItemStatus.NEEDS_ACTION
+                            if checked
+                            else TodoItemStatus.COMPLETED
+                        )
+                        break
+                self.async_write_ha_state()
+                raise
+
+            self.hass.async_create_task(self.coordinator.async_refresh())
+
+        except Exception as e:
+            LOGGER.error("Error updating todo item '%s': %s", item.summary, e)
+            raise
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    """Set up the shopping list integration."""
-
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
-
-    if (
-        "todo_initialized" in hass.data[DOMAIN]
-        and hass.data[DOMAIN]["todo_initialized"]
-    ):
-        LOGGER.info("TODO already initialized, skipping duplicate setup.")
-        return False
-
-    hass.data[DOMAIN]["todo_initialized"] = True
-
-    config = entry.options or entry.data
-    verify_ssl = config.get("verify_ssl", True)
-
-    instance_data = hass.data[DOMAIN]["instances"]
-    coordinator = instance_data.get("coordinator")
-    api = instance_data.get("api")
-    session = instance_data.get("session")
-
-    if not coordinator or not api or not session:
-        LOGGER.error(
-            "Missing required instances in hass.data[DOMAIN]. Todo setup aborted."
-        )
+    hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities
+):
+    """Set up the To-do List platform."""
+    coordinator = hass.data[DOMAIN].get(config_entry.entry_id)
+    if not coordinator:
+        LOGGER.error("❌ No coordinator found for entry ID %s", config_entry.entry_id)
         return
 
-    list_prefix = "SLWG -"
-    shopping_lists = api.build_item_list(coordinator.data)
+    if "shopping_lists" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["shopping_lists"] = []
+
+    shopping_lists_data = coordinator.data.get("shopping_lists_data", [])
+    fallback_lists = coordinator.data.get("shopping_lists", [])
+
+    if shopping_lists_data:
+        LOGGER.debug(
+            "Found %d shopping lists in coordinator shopping_lists_data",
+            len(shopping_lists_data),
+        )
+        lists = shopping_lists_data
+    else:
+        LOGGER.debug(
+            "Using fallback: Found %d shopping lists in coordinator data",
+            len(fallback_lists),
+        )
+        lists = fallback_lists
 
     entities = [
-        ShoppingListWithGrocyTodoListEntity(
-            hass, coordinator, shopping_list, list_prefix
-        )
-        for shopping_list in shopping_lists
+        ShoppingListWithGrocyTodoListEntity(hass, coordinator, list_data, "SWLG -")
+        for list_data in lists
     ]
 
     async_add_entities(entities)
-
-    async def async_check_new_lists(_=None):
-        """Check for new or removed shopping lists periodically."""
-        entity_registry = async_get(hass)
-        platform = entity_platform.current_platform.get()
-        if not platform:
-            return
-
-        existing_list_ids = set(hass.data[DOMAIN]["shopping_lists"])
-        grocy_list_data = api.build_item_list(coordinator.data)
-
-        if isinstance(grocy_list_data, dict):
-            grocy_list_ids = set(grocy_list_data.keys())
-        elif isinstance(grocy_list_data, list):
-            grocy_list_ids = {lst["id"] for lst in grocy_list_data if "id" in lst}
-        else:
-            LOGGER.error(
-                "❌ Unexpected type for shopping_lists: %s", type(grocy_list_data)
-            )
-            grocy_list_ids = set()
-
-        new_list_ids = grocy_list_ids - existing_list_ids
-        removed_list_ids = existing_list_ids - grocy_list_ids
-
-        new_entities = []
-        for list_id in new_list_ids:
-            list_data = next(
-                (lst for lst in grocy_list_data if lst["id"] == list_id), None
-            )
-            if not list_data:
-                continue
-
-            entity_id = f"todo.{DOMAIN}_list_{list_id}"
-
-            existing_entity = hass.states.get(entity_id)
-            if existing_entity:
-                continue
-
-            entity = ShoppingListWithGrocyTodoListEntity(
-                hass, coordinator, list_data, "SLWG -"
-            )
-            new_entities.append(entity)
-
-        if new_entities:
-            try:
-                async_add_entities(new_entities)
-            except Exception as e:
-                LOGGER.error("❌ Error adding entities: %s", e)
-
-        for list_id in removed_list_ids:
-            entity_id = f"todo.{DOMAIN}_list_{list_id}"
-            existing_entity = hass.states.get(entity_id)
-
-            if existing_entity:
-                if entity_registry.async_is_registered(entity_id):
-                    entity_registry.async_remove(entity_id)
-
-                hass.states.async_remove(entity_id)
-
-                await asyncio.sleep(0.1)
-
-                hass.data[DOMAIN]["shopping_lists"].remove(list_id)
-
-        await coordinator.async_refresh()
-
-    hass.data[DOMAIN]["remove_check_task"] = async_track_time_interval(
-        hass, async_check_new_lists, timedelta(seconds=30)
-    )
+    LOGGER.debug("Added %d shopping lists to To-do platform", len(entities))

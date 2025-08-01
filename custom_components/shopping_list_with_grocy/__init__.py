@@ -87,6 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN].setdefault("instances", {})
     hass.data[DOMAIN].setdefault("entities", {})
     hass.data[DOMAIN].setdefault("ha_started_handled", False)
+    hass.data[DOMAIN].setdefault("recent_multiple_choices", {})
 
     config = entry.options or entry.data
     verify_ssl = config.get("verify_ssl", True)
@@ -97,12 +98,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     session = async_get_clientsession(hass)
     coordinator = ShoppingListWithGrocyCoordinator(hass, session, entry, api)
 
+    api.coordinator = coordinator
+
     hass.data[DOMAIN]["instances"]["coordinator"] = coordinator
     hass.data[DOMAIN]["instances"]["session"] = session
     hass.data[DOMAIN]["instances"]["api"] = api
     hass.data[DOMAIN]["todo_initialized"] = False
     hass.data[DOMAIN][entry.entry_id] = coordinator
-    hass.data[DOMAIN]["shopping_lists"] = []
+
+    if "shopping_lists" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["shopping_lists"] = []
 
     deleted = await remove_restored_entities(hass)
 
@@ -123,6 +128,62 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     except Exception:
         pass
 
+    try:
+        import hashlib
+        import shutil
+        from pathlib import Path
+
+        def file_sha256(path):
+            return (
+                hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+            )
+
+        blueprint_names = [
+            "grocy_smart_voice_assistant.yaml",
+        ]
+
+        dest_dir = Path(hass.config.path(f"blueprints/automation/{DOMAIN}"))
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        any_blueprint_updated = False
+
+        for blueprint_name in blueprint_names:
+            src = Path(__file__).parent / "blueprints" / blueprint_name
+            dest = dest_dir / blueprint_name
+
+            if not dest.exists() or file_sha256(src) != file_sha256(dest):
+                shutil.copy(src, dest)
+                LOGGER.info(
+                    "📄 Blueprint '%s' copied or updated to '%s'", blueprint_name, dest
+                )
+                any_blueprint_updated = True
+            else:
+                LOGGER.debug(
+                    "Blueprint '%s' already present and up to date", blueprint_name
+                )
+
+        if dest_dir.exists():
+            for existing_file in dest_dir.glob("*.yaml"):
+                if existing_file.name not in blueprint_names:
+                    LOGGER.info(
+                        "🗑️ Removing obsolete blueprint: '%s'", existing_file.name
+                    )
+                    existing_file.unlink()
+                    any_blueprint_updated = True
+
+        if any_blueprint_updated:
+            try:
+                LOGGER.info("Reloading automations to use updated blueprints...")
+                await hass.services.async_call("automation", "reload")
+                LOGGER.info("Automations reloaded successfully")
+            except Exception as reload_e:
+                LOGGER.warning(
+                    "Could not reload automations automatically: %s", str(reload_e)
+                )
+
+    except Exception as e:
+        LOGGER.warning("Unable to automatically copy or update blueprints: %s", str(e))
+
     return True
 
 
@@ -138,12 +199,12 @@ async def remove_old_entities_and_init(
 
     if entry.state == ConfigEntryState.SETUP_IN_PROGRESS:
         await coordinator.async_config_entry_first_refresh()
-        LOGGER.info("✅ Coordinator first refresh done")
+        LOGGER.info("Coordinator first refresh done")
     else:
         await coordinator.async_refresh()
 
     if DOMAIN in hass.data and "todo_setup_done" in hass.data[DOMAIN]:
-        LOGGER.info("⚠️ TODO setup already initialized, skipping duplicate setup.")
+        LOGGER.info("TODO setup already initialized, skipping duplicate setup.")
     else:
         hass.data[DOMAIN]["todo_setup_done"] = True
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -182,10 +243,10 @@ async def remove_restored_entities(hass: HomeAssistant):
                 entity_registry.async_remove(entity_id)
             else:
                 LOGGER.warning(
-                    "⚠️ Unable to delete %s, entity does not exist in registry",
+                    "Unable to delete %s, entity does not exist in registry",
                     entity_id,
                 )
-        LOGGER.info("✅ Deletion completed, coordinator launched")
+        LOGGER.info("Deletion completed, coordinator launched")
 
         await asyncio.sleep(2)
 
@@ -197,10 +258,6 @@ async def remove_restored_entities(hass: HomeAssistant):
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate old entry."""
     LOGGER.debug("Migrating from version %s", config_entry.version)
-
-    #
-    # To v2
-    #
 
     if config_entry.version == 1:
         unique_id = str(uuid.uuid4())
@@ -216,10 +273,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             config_entry, data=v2_data, options=v2_options, version=2
         )
 
-    #
-    # To v3
-    #
-
     if config_entry.version == 2:
         v2_options: ConfigEntry = {**config_entry.options}
         if v2_options is not None and len(v2_options) < 0:
@@ -231,10 +284,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         hass.config_entries.async_update_entry(
             config_entry, data=v2_data, options=v2_options, version=3
         )
-
-    #
-    # To v4
-    #
 
     if config_entry.version == 3:
         v2_options: ConfigEntry = {**config_entry.options}
@@ -256,16 +305,12 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             config_entry, data=v2_data, options=v2_options, version=4
         )
 
-    #
-    # To v7
-    #
-
     if config_entry.version in {4, 5, 6}:
         hass.config_entries.async_update_entry(config_entry, version=7)
         try:
             await asyncio.wait_for(hass.async_block_till_done(), timeout=10)
         except asyncio.TimeoutError:
-            LOGGER.warning("⚠️ Migration took too long, continuing without blocking.")
+            LOGGER.warning("Migration took too long, continuing without blocking.")
 
     LOGGER.info("Migration to version %s successful", config_entry.version)
 
@@ -274,7 +319,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload Shopping List with Grocy integration."""
-    LOGGER.info("🔄 Unloading Shopping List with Grocy...")
+    LOGGER.info("Unloading Shopping List with Grocy...")
 
     try:
         await async_unload_frontend(hass)

@@ -7,6 +7,7 @@ import time
 import unicodedata
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+from difflib import SequenceMatcher
 from urllib.parse import urlencode
 
 import aiohttp
@@ -19,6 +20,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from ..const import DOMAIN, ENTITY_VERSION, OTHER_FIELDS
+from ..frontend_translations import async_load_frontend_translations, get_voice_response
 from ..utils import is_update_paused
 
 LOGGER = logging.getLogger(__name__)
@@ -51,6 +53,28 @@ class ShoppingListWithGrocyApi:
         self.current_time = datetime.now(timezone.utc)
         self.last_db_changed_time = None
 
+        self.bidirectional_sync_enabled = config.get("enable_bidirectional_sync", False)
+        self.bidirectional_sync_stopped = False
+
+    async def get_frontend_translation(self, key: str, **kwargs) -> str:
+        """Get translation from frontend translation files."""
+        try:
+            language = self.hass.config.language or "en"
+            frontend_translations = await async_load_frontend_translations(
+                self.hass, language
+            )
+            template = get_voice_response(frontend_translations, key)
+
+            if kwargs:
+                try:
+                    return template.format(**kwargs)
+                except (KeyError, ValueError):
+                    return template
+            return template
+        except Exception as e:
+            LOGGER.warning("Failed to get frontend translation for '%s': %s", key, e)
+            return key
+
     def get_entity_in_hass(self, entity_id):
         """Retrieve an entity from Home Assistant."""
         entity = self.hass.states.get(entity_id)
@@ -80,7 +104,14 @@ class ShoppingListWithGrocyApi:
             return []
 
         shopping_list_map = {}
-        shopping_list_details = {item["id"]: item for item in data["shopping_lists"]}
+
+        for shopping_list in data["shopping_lists"]:
+            shopping_list_id = shopping_list["id"]
+            shopping_list_map[shopping_list_id] = {
+                "id": shopping_list_id,
+                "name": shopping_list["name"],
+                "products": [],
+            }
 
         for product in data["products"]:
             product_id = int(product["id"])
@@ -96,15 +127,6 @@ class ShoppingListWithGrocyApi:
                     continue
 
                 shopping_list_id = in_shopping_list["shopping_list_id"]
-
-                if shopping_list_id not in shopping_list_map:
-                    shopping_list = shopping_list_details.get(shopping_list_id)
-                    if shopping_list:
-                        shopping_list_map[shopping_list_id] = {
-                            "id": shopping_list_id,
-                            "name": shopping_list["name"],
-                            "products": [],
-                        }
 
                 if shopping_list_id in shopping_list_map:
                     in_shop_list = str(
@@ -122,7 +144,9 @@ class ShoppingListWithGrocyApi:
                         }
                     )
 
-        return list(shopping_list_map.values())
+        result = list(shopping_list_map.values())
+
+        return result
 
     async def request(
         self, method: str, url: str, accept: str, payload: dict = None, **kwargs
@@ -512,6 +536,484 @@ class ShoppingListWithGrocyApi:
             },
         )
 
+    def normalize_text_for_search(self, text: str) -> str:
+        """Normalize text for search by removing accents and converting to lowercase."""
+        if not text:
+            return ""
+
+        normalized = unicodedata.normalize("NFD", text)
+        ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+
+        return ascii_text.lower().strip()
+
+    def calculate_similarity(self, text1: str, text2: str) -> float:
+        """Calculate similarity between two texts using SequenceMatcher."""
+        normalized1 = self.normalize_text_for_search(text1)
+        normalized2 = self.normalize_text_for_search(text2)
+
+        if not normalized1 or not normalized2:
+            return 0.0
+
+        return SequenceMatcher(None, normalized1, normalized2).ratio()
+
+    def find_similar_products(self, search_name: str, threshold: float = 0.6) -> list:
+        """Find products similar to the search term using fuzzy matching."""
+        if not search_name or not self.final_data or "products" not in self.final_data:
+            return []
+
+        similar_products = []
+        products = self.final_data["products"]
+
+        for product in products:
+            product_name = product.get("name", "")
+            similarity = self.calculate_similarity(search_name, product_name)
+
+            if similarity >= threshold:
+                similar_products.append(
+                    {
+                        "id": product["id"],
+                        "name": product_name,
+                        "similarity": similarity,
+                    }
+                )
+
+        similar_products.sort(key=lambda x: x["similarity"], reverse=True)
+
+        return similar_products[:10]
+
+    def is_case_only_difference(self, search_name: str, product_name: str) -> bool:
+        """Check if two strings differ only by case (uppercase/lowercase)."""
+        return (
+            search_name.lower() == product_name.lower() and search_name != product_name
+        )
+
+    def extract_product_name_from_ha_item(self, item_name: str) -> tuple[str, int]:
+        """Extract product name and quantity from Home Assistant item name."""
+        item_name = item_name.strip()
+
+        pattern1 = r"^(.+?)\s*\([x×](\d+)\)\s*$"
+        match1 = re.match(pattern1, item_name)
+        if match1:
+            product_name = match1.group(1).strip()
+            quantity = int(match1.group(2))
+            LOGGER.error(
+                "🔍 Extracted from HA item '%s' (pattern 1): name='%s', qty=%d",
+                item_name,
+                product_name,
+                quantity,
+            )
+            return product_name, quantity
+
+        pattern2 = r"^(\d+)\s+(.+)$"
+        match2 = re.match(pattern2, item_name)
+        if match2:
+            quantity = int(match2.group(1))
+            product_name = match2.group(2).strip()
+            LOGGER.error(
+                "🔍 Extracted from HA item '%s' (pattern 2): name='%s', qty=%d",
+                item_name,
+                product_name,
+                quantity,
+            )
+            return product_name, quantity
+
+        LOGGER.error(
+            "🔍 No pattern matched for HA item '%s': name='%s', qty=1",
+            item_name,
+            item_name,
+        )
+        return item_name, 1
+
+    async def search_product_in_grocy(self, search_name: str) -> dict:
+        """Search for a product in Grocy by name with exact, contains, and fuzzy matching."""
+        if not search_name:
+            return {"found": False, "matches": [], "search_type": "none"}
+
+        if not self.final_data or "products" not in self.final_data:
+            LOGGER.error("❌ No product data available for search")
+            return {"found": False, "matches": [], "search_type": "no_data"}
+
+        products = self.final_data["products"]
+        normalized_search = self.normalize_text_for_search(search_name)
+
+        case_only_matches = []
+        for product in products:
+            product_name = product.get("name", "")
+            if self.is_case_only_difference(search_name, product_name):
+                case_only_matches.append(product)
+                LOGGER.debug(
+                    "Case-only match found: '%s' -> '%s' (ID: %s)",
+                    search_name,
+                    product_name,
+                    product.get("id"),
+                )
+
+        if case_only_matches:
+            return {
+                "found": True,
+                "matches": case_only_matches,
+                "search_type": "case_only",
+                "search_term": search_name,
+            }
+
+        exact_matches = []
+        for product in products:
+            product_name = product.get("name", "")
+            normalized_product = self.normalize_text_for_search(product_name)
+
+            if normalized_product == normalized_search:
+                exact_matches.append(product)
+
+        if exact_matches:
+            return {
+                "found": True,
+                "matches": exact_matches,
+                "search_type": "exact",
+                "search_term": search_name,
+            }
+
+        contains_matches = []
+        for product in products:
+            product_name = product.get("name", "")
+            normalized_product = self.normalize_text_for_search(product_name)
+
+            if normalized_search in normalized_product:
+                contains_matches.append(product)
+
+        if contains_matches:
+            return {
+                "found": True,
+                "matches": contains_matches,
+                "search_type": "contains",
+                "search_term": search_name,
+            }
+
+        LOGGER.debug("No exact/contains matches, trying fuzzy search...")
+        similar_products = self.find_similar_products(search_name, threshold=0.6)
+
+        if similar_products:
+            LOGGER.debug(
+                "Found %d similar products with fuzzy matching:",
+                len(similar_products),
+            )
+
+            return {
+                "found": True,
+                "matches": similar_products,
+                "search_type": "fuzzy",
+                "search_term": search_name,
+            }
+
+        LOGGER.error(
+            "❌ No matches found for '%s' (including fuzzy search)", search_name
+        )
+        return {
+            "found": False,
+            "matches": [],
+            "search_type": "not_found",
+            "search_term": search_name,
+        }
+
+    async def create_product_in_grocy(self, product_name: str) -> dict:
+        """Create a new product in Grocy with default parameters."""
+        if not product_name:
+            raise ValueError("Product name is required")
+
+        formatted_name = product_name.strip()
+        if formatted_name:
+            formatted_name = formatted_name[0].upper() + formatted_name[1:]
+
+        LOGGER.debug("Creating new product in Grocy: '%s'", formatted_name)
+
+        default_location_id = None
+        default_qu_id = None
+
+        if self.final_data:
+            if "locations" in self.final_data and self.final_data["locations"]:
+                default_location_id = self.final_data["locations"][0].get("id")
+                LOGGER.debug("Using default location ID: %s", default_location_id)
+
+            if (
+                "quantity_units" in self.final_data
+                and self.final_data["quantity_units"]
+            ):
+                default_qu_id = self.final_data["quantity_units"][0].get("id")
+                LOGGER.debug("Using default quantity unit ID: %s", default_qu_id)
+
+        if not default_location_id or not default_qu_id:
+            raise ValueError(
+                "Unable to get default location or quantity unit from Grocy"
+            )
+
+        payload = {
+            "name": formatted_name,
+            "location_id": default_location_id,
+            "qu_id_stock": default_qu_id,
+            "qu_id_purchase": default_qu_id,
+            "qu_id_consume": default_qu_id,
+            "qu_id_price": default_qu_id,
+        }
+
+        try:
+            response = await self.request(
+                "post",
+                "api/objects/products",
+                "application/json",
+                payload,
+            )
+
+            result = await response.json()
+            product_id = result.get("created_object_id")
+
+            LOGGER.debug(
+                "Product created successfully: '%s' with ID %s",
+                formatted_name,
+                product_id,
+            )
+
+            voice_mode = self.hass.data.get(DOMAIN, {}).get("voice_mode", False)
+            if not voice_mode:
+                title = await self.get_frontend_translation(
+                    "product_created_notification_title"
+                )
+                message = await self.get_frontend_translation(
+                    "product_created_notification_message",
+                    product_name=formatted_name,
+                    product_id=product_id,
+                )
+
+                await self.hass.services.async_call(
+                    "persistent_notification",
+                    "create",
+                    {
+                        "title": title,
+                        "message": message,
+                        "notification_id": f"grocy_product_created_{product_id}",
+                    },
+                )
+
+            return {
+                "success": True,
+                "product_id": product_id,
+                "product_name": formatted_name,
+            }
+
+        except Exception as e:
+            LOGGER.error("❌ Failed to create product '%s': %s", formatted_name, e)
+            raise
+
+    async def add_product_to_grocy_shopping_list(
+        self,
+        product_id: int,
+        quantity: int = 1,
+        shopping_list_id: int = 1,
+        note: str = "",
+    ):
+        """Add a product to Grocy shopping list or increment existing quantity."""
+        try:
+            existing_entry = None
+            if self.final_data and "shopping_list" in self.final_data:
+                for item in self.final_data["shopping_list"]:
+                    if int(item["product_id"]) == int(product_id) and int(
+                        item["shopping_list_id"]
+                    ) == int(shopping_list_id):
+                        existing_entry = item
+                        break
+
+            if existing_entry:
+                new_amount = int(existing_entry["amount"]) + quantity
+
+                payload = {
+                    "product_id": int(product_id),
+                    "shopping_list_id": int(shopping_list_id),
+                    "amount": new_amount,
+                    "note": note or existing_entry.get("note", ""),
+                }
+
+                await self.request(
+                    "put",
+                    f"api/objects/shopping_list/{existing_entry['id']}",
+                    "*/*",
+                    payload,
+                )
+
+            else:
+                payload = {
+                    "product_id": int(product_id),
+                    "list_id": shopping_list_id,
+                    "product_amount": quantity,
+                    "note": note,
+                }
+
+                await self.request(
+                    "post",
+                    "api/stock/shoppinglist/add-product",
+                    "*/*",
+                    payload,
+                )
+
+            return True
+
+        except Exception as e:
+            LOGGER.error("❌ Failed to add product to Grocy shopping list: %s", e)
+            raise
+
+    async def handle_ha_todo_item_creation(
+        self, item_summary: str, shopping_list_id: int = 1
+    ) -> dict:
+        """Handle creation of a todo item from Home Assistant."""
+        if not self.bidirectional_sync_enabled or self.bidirectional_sync_stopped:
+            LOGGER.error("🚫 Bidirectional sync is disabled or stopped")
+            return {"success": False, "reason": "sync_disabled"}
+
+        if not self.final_data:
+            LOGGER.error("⚠️ No data available, refreshing...")
+            await self.retrieve_data(force=True)
+            if not self.final_data:
+                LOGGER.error("❌ Still no data after refresh, stopping for safety")
+                self.stop_bidirectional_sync("No data available after refresh")
+                return {"success": False, "reason": "no_data_safety_stop"}
+
+        try:
+            product_name, quantity = self.extract_product_name_from_ha_item(
+                item_summary
+            )
+
+            LOGGER.error(
+                "🔍 DEBUG: item_summary='%s' -> product_name='%s', quantity=%d",
+                item_summary,
+                product_name,
+                quantity,
+            )
+
+            if not product_name:
+                LOGGER.error("❌ Empty product name extracted from '%s'", item_summary)
+                return {"success": False, "reason": "empty_name"}
+
+            search_result = await self.search_product_in_grocy(product_name)
+
+            if search_result["found"]:
+                matches = search_result["matches"]
+
+                should_auto_add = (
+                    search_result.get("search_type") == "case_only"
+                    or (
+                        search_result.get("search_type") == "exact"
+                        and len(matches) == 1
+                    )
+                    or (
+                        len(matches) == 1
+                        and self.is_case_only_difference(
+                            product_name, matches[0]["name"]
+                        )
+                    )
+                )
+
+                if should_auto_add:
+
+                    matched_product = matches[0]
+                    search_type = search_result.get("search_type", "unknown")
+
+                    add_result = await self.add_product_to_grocy_shopping_list(
+                        matched_product["id"], quantity, shopping_list_id
+                    )
+
+                    if add_result:  # add_result is True on success
+                        return {
+                            "success": True,
+                            "reason": "auto_added_case_match",
+                            "product_name": matched_product["name"],
+                            "product_id": matched_product["id"],
+                            "quantity": quantity,
+                            "original_search": product_name,
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "reason": "auto_add_failed",
+                            "error": "Failed to add product to shopping list",
+                        }
+                else:
+
+                    matches_with_create_option = matches.copy()
+                    create_option_text = await self.get_frontend_translation(
+                        "create_new_product", product_name=product_name
+                    )
+                    matches_with_create_option.append(
+                        {
+                            "id": "create_new",
+                            "name": create_option_text,
+                            "similarity": 0.0,
+                            "is_create_option": True,
+                        }
+                    )
+
+                    return {
+                        "success": False,
+                        "reason": "multiple_matches",
+                        "matches": matches_with_create_option,
+                        "search_term": product_name,
+                        "quantity": quantity,
+                        "shopping_list_id": shopping_list_id,
+                    }
+
+            else:
+                create_option_text = await self.get_frontend_translation(
+                    "create_new_product", product_name=product_name
+                )
+
+                return {
+                    "success": False,
+                    "reason": "multiple_matches",
+                    "matches": [
+                        {
+                            "id": "create_new",
+                            "name": create_option_text,
+                            "similarity": 0.0,
+                            "is_create_option": True,
+                        }
+                    ],
+                    "search_term": product_name,
+                    "quantity": quantity,
+                    "shopping_list_id": shopping_list_id,
+                }
+
+        except Exception as e:
+            LOGGER.error("❌ Error handling HA todo item creation: %s", e)
+            return {"success": False, "reason": "error", "error": str(e)}
+
+    def stop_bidirectional_sync(self, reason: str = "manual"):
+        """Emergency stop for bidirectional sync."""
+        self.bidirectional_sync_stopped = True
+        LOGGER.error(
+            "🛑 EMERGENCY STOP: Bidirectional sync has been stopped. Reason: %s", reason
+        )
+
+        self.hass.async_create_task(
+            self.hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "title": "⚠️ Shopping List Sync Stopped",
+                    "message": f"Bidirectional sync has been emergency stopped due to: {reason}. Use the restart service to re-enable.",
+                    "notification_id": "grocy_sync_emergency_stop",
+                },
+            )
+        )
+
+    def restart_bidirectional_sync(self):
+        """Restart bidirectional sync after emergency stop."""
+        self.bidirectional_sync_stopped = False
+        LOGGER.error("🔄 Bidirectional sync has been restarted")
+
+        self.hass.async_create_task(
+            self.hass.services.async_call(
+                "persistent_notification",
+                "dismiss",
+                {"notification_id": "grocy_sync_emergency_stop"},
+            )
+        )
+
     async def update_refreshing_status(self, refreshing):
         entity = self.hass.data[DOMAIN]["entities"].get(
             "updating_shopping_list_with_grocy"
@@ -566,10 +1068,18 @@ class ShoppingListWithGrocyApi:
                     self.final_data["homeassistant_products"] = (
                         await self.parse_products(self.final_data)
                     )
+
+                    self.final_data["shopping_lists_data"] = self.build_item_list(
+                        self.final_data
+                    )
                 else:
                     async with timeout(60):
                         self.final_data["homeassistant_products"] = (
                             await self.parse_products(self.final_data)
+                        )
+
+                        self.final_data["shopping_lists_data"] = self.build_item_list(
+                            self.final_data
                         )
 
         finally:
