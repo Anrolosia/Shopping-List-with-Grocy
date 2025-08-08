@@ -434,7 +434,8 @@ def async_setup_services(hass) -> None:
             product_id = data.get(SERVICE_ATTR_PRODUCT_ID, "")
             note = data.get(SERVICE_ATTR_NOTE, "")
             shopping_list_id = data.get(SERVICE_ATTR_SHOPPING_LIST_ID, 1)
-            await coordinator.add_product(product_id, shopping_list_id, note)
+            quantity = data.get("quantity", 1)
+            await coordinator.add_product(product_id, shopping_list_id, note, quantity)
 
         if service == SERVICE_REMOVE:
             product_id = data.get(SERVICE_ATTR_PRODUCT_ID, "")

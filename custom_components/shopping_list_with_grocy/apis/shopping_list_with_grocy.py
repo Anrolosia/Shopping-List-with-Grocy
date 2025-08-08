@@ -422,13 +422,17 @@ class ShoppingListWithGrocyApi:
         shopping_list_id,
         product_note,
         remove_product=False,
+        quantity=1,
     ):
         """Update or remove a product from the shopping list."""
         endpoint = "remove-product" if remove_product else "add-product"
+
+        grocy_quantity = quantity * float(qu_factor_purchase_to_stock)
+
         payload = {
             "product_id": int(product_id),
             "list_id": shopping_list_id,
-            "product_amount": round(float(qu_factor_purchase_to_stock)),
+            "product_amount": grocy_quantity,
         }
 
         if not remove_product:
@@ -442,7 +446,7 @@ class ShoppingListWithGrocyApi:
         )
 
     async def manage_product(
-        self, product_id, shopping_list_id=1, note="", remove_product=False
+        self, product_id, shopping_list_id=1, note="", remove_product=False, quantity=1
     ):
         """Add or remove a product from the shopping list."""
         entity = self.get_entity_in_hass(product_id)
@@ -455,7 +459,7 @@ class ShoppingListWithGrocyApi:
 
         attributes = entity.attributes.copy()
         if "product_id" in attributes:
-            change = -1 if remove_product else 1
+            change = -quantity if remove_product else quantity
             total_qty = max(0, int(state_value) + change)
             qty = max(
                 0,
@@ -471,6 +475,7 @@ class ShoppingListWithGrocyApi:
                 str(shopping_list_id),
                 note,
                 remove_product,
+                quantity,
             )
 
             if qty > 0:

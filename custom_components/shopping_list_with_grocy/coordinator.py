@@ -43,8 +43,10 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         await self.retrieve_data()
         return self.data
 
-    async def add_product(self, product_id, shopping_list_id, note):
-        return await self.api.manage_product(product_id, shopping_list_id, note)
+    async def add_product(self, product_id, shopping_list_id, note, quantity=1):
+        return await self.api.manage_product(
+            product_id, shopping_list_id, note, False, quantity
+        )
 
     async def remove_product(self, product_id, shopping_list_id):
         return await self.api.manage_product(product_id, shopping_list_id, "", True)

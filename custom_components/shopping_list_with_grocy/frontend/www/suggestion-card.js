@@ -445,6 +445,9 @@ class GrocyShoppingSuggestions extends LitElement {
             this._loading = true;
             this.requestUpdate();
 
+            // Keep track of added product IDs
+            const addedProductIds = [];
+            
             for (const suggestion of productsToAdd) {
                 const quantity = this.quantities[suggestion.id] || 0;
                 await this.hass.callService('shopping_list_with_grocy', 'add_product', {
@@ -452,14 +455,30 @@ class GrocyShoppingSuggestions extends LitElement {
                     quantity: quantity,
                     disable_notification: true
                 });
+                addedProductIds.push(suggestion.id);
             }
 
-                this.quantities = Object.fromEntries(
-                Object.entries(this.quantities).filter(([id]) => !this._addedProducts.has(id))
-            );
+            // Clear quantities for added products and update shopping list state
+            const newQuantities = { ...this.quantities };
+            addedProductIds.forEach(id => {
+                delete newQuantities[id];
+                // Update the shopping list state to reflect the added product
+                this._shoppingListItems[id] = (this._shoppingListItems[id] || 0) + (this.quantities[id] || 0);
+            });
+            this.quantities = newQuantities;
+            
+            // Force an update of the shopping list state
+            this._updateShoppingListState();
+            
+            // Schedule a delayed refresh to ensure entities are updated
+            setTimeout(() => {
+                this._updateShoppingListState();
+                this.requestUpdate();
+            }, 1000);
+            
         } catch (err) {
             console.error('Error adding products to list:', err);
-                console.warn('Failed to add products:', err.message);
+            console.warn('Failed to add products:', err.message);
         } finally {
             this._loading = false;
             this.requestUpdate();
@@ -482,13 +501,27 @@ class GrocyShoppingSuggestions extends LitElement {
                 disable_notification: true
             });
 
-                this.quantities = {
+            // Clear the quantity for this product and update shopping list state
+            this.quantities = {
                 ...this.quantities,
                 [suggestion.id]: 0
             };
+            
+            // Update the shopping list state to reflect the added product
+            this._shoppingListItems[suggestion.id] = (this._shoppingListItems[suggestion.id] || 0) + quantity;
+            
+            // Force an update of the shopping list state
+            this._updateShoppingListState();
+            
+            // Schedule a delayed refresh to ensure entities are updated
+            setTimeout(() => {
+                this._updateShoppingListState();
+                this.requestUpdate();
+            }, 1000);
+            
         } catch (err) {
             console.error('Error adding product to list:', err);
-                console.warn('Failed to add product:', suggestion.name, err.message);
+            console.warn('Failed to add product:', suggestion.name, err.message);
         } finally {
             suggestion._adding = false;
             this._loading = false;
