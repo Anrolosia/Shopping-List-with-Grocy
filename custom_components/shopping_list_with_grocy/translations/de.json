@@ -29,7 +29,8 @@
           "api_key": "Grocy - API-Schlüssel",
           "disable_timeout": "Netzwerk-Timeout deaktivieren (⚠️ Auf eigene Gefahr, kann Instabilität verursachen)",
           "image_download_size": "Größe der heruntergeladenen Produktbilder? (Wählen Sie 0, um Bilder zu deaktivieren)",
-          "show_advanced": "⚙️ Erweiterte Algorithmus-Einstellungen anzeigen (⚠️ Kann Funktionalität beeinträchtigen, wenn falsch geändert)"
+          "show_advanced": "⚙️ Erweiterte Algorithmus-Einstellungen anzeigen (⚠️ Kann Funktionalität beeinträchtigen, wenn falsch geändert)",
+          "enable_bidirectional_sync": "Bidirektionale Synchronisierung verwenden"
         }
       },
       "advanced": {

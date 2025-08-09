@@ -69,6 +69,7 @@
             "multiple_choice_message": "Multiple products match your request:\n\n{options}\n\n📋 To add, go to Developer Tools → Services and copy-paste:\n\n{yaml}"
         },
         "voice_responses": {
+            "sync_not_enabled": "Bidirectional sync is not enabled yet.",
             "no_choices": "No choices available. Previous choices have expired, please make a new search.",
             "invalid_choice": "Choice {choice_number} invalid. Available choices are from 1 to {max_choices}. Please repeat your choice.",
             "product_added": "{product_name} (x{quantity}) added to your shopping list!",

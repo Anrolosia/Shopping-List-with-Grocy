@@ -47,6 +47,7 @@
       "multiple_choice_message": "Mehrere Produkte entsprechen Ihrer Anfrage:\n\n{options}\n\n📋 Zum Hinzufügen gehen Sie zu Entwicklertools → Services und kopieren Sie:\n\n{yaml}"
     },
     "voice_responses": {
+      "sync_not_enabled": "Die bidirektionale Synchronisierung ist noch nicht aktiviert.",
       "no_choices": "Keine Auswahl verfügbar. Vorherige Auswahlmöglichkeiten sind abgelaufen, bitte führen Sie eine neue Suche durch.",
       "invalid_choice": "Auswahl {choice_number} ungültig. Verfügbare Auswahlmöglichkeiten sind von 1 bis {max_choices}. Bitte wiederholen Sie Ihre Auswahl.",
       "product_added": "{product_name} (x{quantity}) zu Ihrer Einkaufsliste hinzugefügt!",

@@ -29,7 +29,8 @@
                     "api_key": "Grocy - API Key",
                     "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
-                    "show_advanced": "Show Advanced Algorithm Settings (WARNING: May break functionality if modified incorrectly)"
+                    "show_advanced": "Show Advanced Algorithm Settings (WARNING: May break functionality if modified incorrectly)",
+                    "enable_bidirectional_sync": "Use bidirectional sync"
                 }
             },
             "advanced": {

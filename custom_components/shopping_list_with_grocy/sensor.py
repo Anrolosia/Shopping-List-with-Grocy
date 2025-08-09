@@ -175,11 +175,57 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
         return {"suggestions": [], "last_update": None}
 
 
+class GrocyVoiceResponseHelperSensor(SensorEntity):
+    """Permanent sensor for Grocy voice assistant responses."""
+
+    def __init__(self, hass: HomeAssistant):
+        self.hass = hass
+        self._attr_name = "Grocy Voice Response Helper"
+        self._attr_unique_id = f"{DOMAIN}_voice_response_helper"
+        self._state = "idle"
+        self._sync_not_enabled = None
+
+    async def async_added_to_hass(self):
+        await self._load_sync_not_enabled()
+        await super().async_added_to_hass()
+
+    async def _load_sync_not_enabled(self):
+        from .services import get_voice_translation
+
+        msg = await get_voice_translation(self.hass, "sync_not_enabled")
+        self._sync_not_enabled = (
+            msg if msg else "Bidirectional sync is not enabled yet."
+        )
+
+    @property
+    def name(self):
+        return self._attr_name
+
+    @property
+    def unique_id(self):
+        return self._attr_unique_id
+
+    @property
+    def state(self):
+        return self._state
+
+    @property
+    def extra_state_attributes(self):
+        return {"sync_not_enabled": self._sync_not_enabled}
+
+    async def async_update(self):
+        await self._load_sync_not_enabled()
+
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform."""
 
     async_add_entities(
-        [GrocyShoppingSuggestionsSensor(hass), GrocyMultipleChoicesSensor(hass)]
+        [
+            GrocyShoppingSuggestionsSensor(hass),
+            GrocyMultipleChoicesSensor(hass),
+            GrocyVoiceResponseHelperSensor(hass),
+        ]
     )
 
     entity_registry = async_get(hass)
@@ -435,3 +481,12 @@ class GrocyShoppingListSensor(CoordinatorEntity, SensorEntity):
             entity_registry.async_update_entity(
                 registry_entry.entity_id, new_entity_id=f"sensor.{self._attr_unique_id}"
             )
+
+    async def async_will_remove_from_hass(self):
+        await super().async_will_remove_from_hass()
+
+        entity_registry = async_get(self.hass)
+        registry_entry = entity_registry.async_get(self.entity_id)
+
+        if registry_entry:
+            entity_registry.async_remove(registry_entry.entity_id)

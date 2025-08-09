@@ -102,59 +102,66 @@ action:
       - condition: template
         value_template: "{{ trigger_type == 'conversation' }}"
     then:
-
       - if:
           - condition: template
-            value_template: "{{ choice_text != '' }}"
+            value_template: "{{ not state_attr('todo.shopping_list_with_grocy_liste_de_courses', 'enable_bidirectional_sync') }}"
         then:
-          - service: shopping_list_with_grocy.voice_select_choice
-            data:
-              voice_input: "{{ choice_text }}"
-              silent: true
-            continue_on_error: true
+          - set_conversation_response: >
+              {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+              {{ domain_data.get('sync_not_enabled', 'Bidirectional Sync not enabled.') }}
+        else:
+          - if:
+              - condition: template
+                value_template: "{{ choice_text != '' }}"
+            then:
+              - service: shopping_list_with_grocy.voice_select_choice
+                data:
+                  voice_input: "{{ choice_text }}"
+                  silent: true
+                continue_on_error: true
 
-          - delay: "00:00:01"
+              - delay: "00:00:01"
+
+              - if:
+                  - condition: template
+                    value_template: >
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', '') != '' }}
+                then:
+                  - set_conversation_response: >
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', 'Error processing choice.') }}
+                else:
+                  - set_conversation_response: "Choice {{ choice_text }} processed, check notifications for details."
 
           - if:
               - condition: template
-                value_template: >
-                  {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
-                  {{ domain_data.get('voice_response', '') != '' }}
+                value_template: "{{ product_name != '' }}"
             then:
-              - set_conversation_response: >
-                  {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
-                  {{ domain_data.get('voice_response', 'Error processing choice.') }}
-            else:
-              - set_conversation_response: "Choice {{ choice_text }} processed, check notifications for details."
+              - service: shopping_list_with_grocy.voice_add_product_with_response
+                data:
+                  product_name: "{{ product_name }}"
+                  shopping_list_id: 1
 
-      - if:
-          - condition: template
-            value_template: "{{ product_name != '' }}"
-        then:
-          - service: shopping_list_with_grocy.voice_add_product_with_response
-            data:
-              product_name: "{{ product_name }}"
-              shopping_list_id: 1
+              - delay: "00:00:01"
 
-          - delay: "00:00:01"
+              - if:
+                  - condition: template
+                    value_template: >
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', '') != '' }}
+                then:
+                  - set_conversation_response: >
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', 'Error retrieving response.') }}
+                else:
+                  - set_conversation_response: "{{ product_name }} processed, check notifications for details."
 
           - if:
               - condition: template
-                value_template: >
-                  {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
-                  {{ domain_data.get('voice_response', '') != '' }}
+                value_template: "{{ product_name == '' and choice_text == '' }}"
             then:
-              - set_conversation_response: >
-                  {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
-                  {{ domain_data.get('voice_response', 'Error retrieving response.') }}
-            else:
-              - set_conversation_response: "{{ product_name }} processed, check notifications for details."
-
-      - if:
-          - condition: template
-            value_template: "{{ product_name == '' and choice_text == '' }}"
-        then:
-          - set_conversation_response: "I didn't understand the product name."
+              - set_conversation_response: "I didn't understand the product name."
     else:
 
       - if:

@@ -166,11 +166,22 @@ class ShoppingListWithGrocyTodoListEntity(
     @property
     def extra_state_attributes(self):
 
+        config_entry = None
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            config_entry = entry
+            break
+
+        bidirectional_sync_enabled = False
+        if config_entry:
+            config = config_entry.options or config_entry.data
+            bidirectional_sync_enabled = config.get("enable_bidirectional_sync", False)
+
         return {
             "product_choices": self.hass.data[DOMAIN].get("product_choices", {}),
             "recent_multiple_choices": self.hass.data[DOMAIN].get(
                 "recent_multiple_choices", {}
             ),
+            "enable_bidirectional_sync": bidirectional_sync_enabled,
         }
 
     async def async_create_todo_item(self, item: TodoItem) -> None:

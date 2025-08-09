@@ -69,6 +69,7 @@
             "multiple_choice_message": "Plusieurs produits correspondent à votre demande :\n\n{options}\n\n📋 Pour ajouter, allez dans Outils de développement → Services et copiez-collez :\n\n{yaml}"
         },
         "voice_responses": {
+            "sync_not_enabled": "La synchronisation bidirectionnelle n'est pas encore activée.",
             "no_choices": "Aucun choix disponible. Les choix précédents ont expiré, veuillez effectuer une nouvelle recherche.",
             "invalid_choice": "Choix {choice_number} invalide. Les choix disponibles vont de 1 à {max_choices}. Veuillez répéter votre choix.",
             "product_added": "{product_name} (x{quantity}) ajouté à votre liste de courses !",
