@@ -4,18 +4,10 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
-from homeassistant.config_entries import (
-    ConfigEntry,
-    ConfigEntryState,
-)
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    ATTR_NAME,
-    CONF_NAME,
-    EVENT_HOMEASSISTANT_STARTED,
-    Platform,
-)
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, asyncio
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
@@ -89,7 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN].setdefault("ha_started_handled", False)
     hass.data[DOMAIN].setdefault("recent_multiple_choices", {})
 
-    config = entry.options or entry.data
+    config = {**entry.data, **(entry.options or {})}
     verify_ssl = config.get("verify_ssl", True)
 
     api = ShoppingListWithGrocyApi(

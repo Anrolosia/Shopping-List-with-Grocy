@@ -3,11 +3,10 @@ import logging
 import time
 from datetime import timedelta
 
-from async_timeout import timeout
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, STATE_INIT
+from .const import DOMAIN
 from .utils import is_update_paused
 
 LOGGER = logging.getLogger(__name__)
@@ -18,26 +17,29 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass, session, entry, api):
         """Initialize the coordinator."""
-        self.hass = hass
-        self.session = session
-        self.entry = entry
-        self.api = api
-        self.last_successful_fetch = None
-        self.data = hass.data.setdefault(DOMAIN, {}).setdefault("products", {})
-        self.disable_timeout = entry.options.get("disable_timeout", False)
-        self._parsed_data = {}
-        homeassistant_products = self.data.get("homeassistant_products", {})
-        if not isinstance(homeassistant_products, dict):
-            LOGGER.error("❌ homeassistant_products is not a dictionary! Resetting.")
-            homeassistant_products = {}
-        self._parsed_data.update(homeassistant_products)
-        self.entities = []
         super().__init__(
             hass,
             LOGGER,
             name=f"{DOMAIN}_coordinator",
             update_interval=timedelta(seconds=30),
         )
+        self.hass = hass
+        self.session = session
+        self.entry = entry
+        self.api = api
+        self.last_successful_fetch = None
+        self.entities = []
+
+        self.data = hass.data.setdefault(DOMAIN, {}).setdefault("products", {})
+        self._parsed_data = {}
+
+        homeassistant_products = self.data.get("homeassistant_products", {})
+        if not isinstance(homeassistant_products, dict):
+            LOGGER.error(
+                "\u274c homeassistant_products is not a dictionary! Resetting."
+            )
+            homeassistant_products = {}
+        self._parsed_data.update(homeassistant_products)
 
     async def _async_update_data(self):
         await self.retrieve_data()
@@ -121,11 +123,7 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
             paused = is_update_paused(self.hass)
 
             if not paused:
-                if self.disable_timeout:
-                    data = await self.api.retrieve_data(force)
-                else:
-                    async with timeout(60):
-                        data = await self.api.retrieve_data(force)
+                data = await self.api.retrieve_data(force)
 
                 if data is not None:
                     self.last_successful_fetch = self.hass.loop.time()
@@ -167,8 +165,6 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
 
                 else:
                     LOGGER.warning("Received empty or invalid data from API.")
-        except asyncio.TimeoutError:
-            LOGGER.error("Timeout occurred while fetching data from Grocy API.")
         except Exception as e:
             LOGGER.exception(
                 "Unexpected error while fetching data from Grocy API: %s", e

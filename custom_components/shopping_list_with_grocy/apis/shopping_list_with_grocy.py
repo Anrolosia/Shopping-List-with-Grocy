@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import copy
 import json
 import logging
 import re
@@ -13,9 +14,7 @@ from urllib.parse import urlencode
 import aiohttp
 from async_timeout import timeout
 from dateutil.relativedelta import relativedelta
-from homeassistant.components.todo import (
-    TodoItemStatus,
-)
+from homeassistant.components.todo import TodoItemStatus
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -46,7 +45,7 @@ class ShoppingListWithGrocyApi:
 
         self.image_size = config.get("image_download_size", 0)
         self.ha_products = []
-        self.final_data = []
+        self.final_data = {}
         self.pagination_limit = 40
         self.disable_timeout = config.get("disable_timeout", False)
 
@@ -55,6 +54,9 @@ class ShoppingListWithGrocyApi:
 
         self.bidirectional_sync_enabled = config.get("enable_bidirectional_sync", False)
         self.bidirectional_sync_stopped = False
+
+        concurrency = 8 if self.image_size <= 50 else 5 if self.image_size <= 100 else 3
+        self._image_fetch_semaphore = asyncio.Semaphore(concurrency)
 
     async def get_frontend_translation(self, key: str, **kwargs) -> str:
         """Get translation from frontend translation files."""
@@ -149,7 +151,15 @@ class ShoppingListWithGrocyApi:
         return result
 
     async def request(
-        self, method: str, url: str, accept: str, payload: dict = None, **kwargs
+        self,
+        method: str,
+        url: str,
+        accept: str,
+        payload: dict = None,
+        *,
+        req_timeout: int | None = None,
+        log_level: int = logging.ERROR,
+        **kwargs,
     ) -> aiohttp.ClientResponse:
         """Make an asynchronous HTTP request."""
         if not self.api_url:
@@ -175,8 +185,8 @@ class ShoppingListWithGrocyApi:
             base_url = self.api_url.rstrip("/") if self.api_url else ""
             full_url = f"{base_url}/{url}"
 
-            timeout_value = None if self.disable_timeout else 30
-            async with timeout(timeout_value):
+            if self.disable_timeout or req_timeout is None:
+                # No timeout wrapper
                 response = await self.web_session.request(
                     method,
                     full_url,
@@ -185,23 +195,39 @@ class ShoppingListWithGrocyApi:
                     ssl=self.verify_ssl,
                     **kwargs,
                 )
-
-                if response.status >= 400:
-                    error_text = await response.text()
-                    LOGGER.error(
-                        "Grocy API error: %s - %s", response.status, error_text
+            else:
+                # Only apply a timeout when explicitly requested
+                async with timeout(req_timeout):
+                    response = await self.web_session.request(
+                        method,
+                        full_url,
+                        headers=headers,
+                        json=payload if payload and not is_get else None,
+                        ssl=self.verify_ssl,
+                        **kwargs,
                     )
-                    raise aiohttp.ClientError(
-                        f"API request failed: {response.status} - {error_text}"
-                    )
 
-                return response
+            if response.status >= 400:
+                error_text = await response.text()
+                LOGGER.error("Grocy API error: %s - %s", response.status, error_text)
+                raise aiohttp.ClientError(
+                    f"API request failed: {response.status} - {error_text}"
+                )
+
+            return response
 
         except asyncio.TimeoutError as err:
-            LOGGER.error("Timeout connecting to Grocy API at %s: %s", self.api_url, err)
+            LOGGER.log(
+                log_level,
+                "Timeout connecting to Grocy API at %s: %s",
+                self.api_url,
+                err,
+            )
             raise
         except aiohttp.ClientError as err:
-            LOGGER.error("Error connecting to Grocy API at %s: %s", self.api_url, err)
+            LOGGER.log(
+                log_level, "Error connecting to Grocy API at %s: %s", self.api_url, err
+            )
             raise
 
     async def fetch_products(self, path: str, offset: int):
@@ -221,12 +247,21 @@ class ShoppingListWithGrocyApi:
     async def fetch_image(self, image_name: str):
         """Fetch an image from the API."""
         url = f"api/files/productpictures/{image_name}?force_serve_as=picture&best_fit_width={self.image_size}"
-        return await self.request("get", url, "application/octet-stream")
+        return await self.request(
+            "get",
+            url,
+            "application/octet-stream",
+            req_timeout=self.compute_timeout(),
+            log_level=logging.DEBUG,
+        )
 
     async def fetch_last_db_changed_time(self):
         """Fetch the last database change timestamp."""
         response = await self.request(
-            "get", "api/system/db-changed-time", "application/json"
+            "get",
+            "api/system/db-changed-time",
+            "application/json",
+            req_timeout=self.compute_timeout(),
         )
 
         last_changed = await response.json()
@@ -294,8 +329,6 @@ class ShoppingListWithGrocyApi:
         parsed_products = []
         for product in data["products"]:
             product_id = int(product["id"])
-            object_id = f"{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
-            entity = f"sensor.{object_id}"
 
             userfields = product.get("userfields", {})
             qty_factor = (
@@ -313,13 +346,15 @@ class ShoppingListWithGrocyApi:
             )
             group = product_groups.get(product.get("product_group_id"), "")
 
-            picture = ""
+            """
             if self.image_size > 0 and product.get("picture_file_name"):
-                picture_response = await self.fetch_image(
-                    self.encode_base64(product["picture_file_name"])
-                )
-                picture_bytes = await picture_response.read()
-                picture = base64.b64encode(picture_bytes).decode("utf-8")
+                try:
+                    self.hass.async_create_task(
+                        self._fetch_and_update_image(product_id, product["picture_file_name"])
+                    )
+                except Exception:
+                    LOGGER.debug("Failed to schedule image fetch for product %s", product_id, exc_info=True)
+            """
 
             shopping_lists = {}
             qty_in_shopping_lists = 0
@@ -359,7 +394,6 @@ class ShoppingListWithGrocyApi:
                 "qty_unit_purchase": qty_unit_purchase,
                 "qty_unit_stock": qty_unit_stock,
                 "qu_factor_purchase_to_stock": float(qty_factor),
-                "product_image": picture,
                 "location": location,
                 "consume_location": consume_location,
                 "group": group,
@@ -396,6 +430,70 @@ class ShoppingListWithGrocyApi:
         }
 
         return parsed_products_dict
+
+    async def _kick_off_image_fetches(self, data: dict):
+        """Schedule image downloads out-of-band, without blocking startup."""
+        if not data or "products" not in data or self.image_size <= 0:
+            return
+        try:
+            count = 0
+            for product in data["products"]:
+                picture = product.get("picture_file_name")
+                if picture:
+                    product_id = int(product["id"])
+                    self.hass.async_create_task(
+                        self._fetch_and_update_image(product_id, picture)
+                    )
+                    count += 1
+        except Exception:
+            LOGGER.debug("Failed to schedule background image fetches", exc_info=True)
+
+    async def _fetch_and_update_image(self, product_id: int, picture_file_name: str):
+        """Fetch an image in background and dispatch an update for the product sensor."""
+        async with self._image_fetch_semaphore:
+            try:
+                encoded_name = self.encode_base64(picture_file_name)
+                response = await self.fetch_image(encoded_name)
+                if response is None:
+                    LOGGER.debug(
+                        "No response while fetching image for product %s", product_id
+                    )
+                    return
+
+                picture_bytes = await response.read()
+                picture = base64.b64encode(picture_bytes).decode("utf-8")
+
+                data_uri = f"data:image/png;base64,{picture}"
+
+                try:
+                    if self.final_data and isinstance(self.final_data, dict):
+                        hap = self.final_data.get("homeassistant_products")
+                        if isinstance(hap, dict):
+                            key = str(product_id)
+                            if key in hap and "attributes" in hap[key]:
+                                hap[key]["attributes"]["product_image"] = picture
+                                hap[key]["attributes"]["entity_picture"] = data_uri
+                except Exception:
+                    LOGGER.debug(
+                        "Failed to persist background image into final_data for product %s",
+                        product_id,
+                        exc_info=True,
+                    )
+
+                async_dispatcher_send(
+                    self.hass,
+                    f"{DOMAIN}_add_or_update_sensor",
+                    {
+                        "product_id": product_id,
+                        "attributes": {
+                            "product_image": picture,
+                            "entity_picture": data_uri,
+                        },
+                    },
+                )
+
+            except Exception as e:
+                LOGGER.debug("Failed to fetch image for product %s: %s", product_id, e)
 
     async def update_grocy_shoppinglist_product(self, product_id: int, done: bool):
         """Mark a product as done or not in the shopping list."""
@@ -497,15 +595,17 @@ class ShoppingListWithGrocyApi:
                 attributes["qty_in_shopping_lists"] = total_qty
                 attributes["list_count"] = list_count
 
+            payload = {
+                "product_id": attributes.get("product_id"),
+                "qty_in_shopping_lists": total_qty,
+                "attributes": attributes,
+                "attributes_to_remove": attributes_to_remove,
+            }
+
             async_dispatcher_send(
                 self.hass,
                 f"{DOMAIN}_add_or_update_sensor",
-                {
-                    "product_id": attributes.get("product_id"),
-                    "qty_in_shopping_lists": total_qty,
-                    "attributes": attributes,
-                    "attributes_to_remove": attributes_to_remove,
-                },
+                payload,
             )
 
     async def update_note(self, product_id, shopping_list_id, note):
@@ -923,7 +1023,7 @@ class ShoppingListWithGrocyApi:
                         matched_product["id"], quantity, shopping_list_id
                     )
 
-                    if add_result:  # add_result is True on success
+                    if add_result:
                         return {
                             "success": True,
                             "reason": "auto_added_case_match",
@@ -1019,6 +1119,13 @@ class ShoppingListWithGrocyApi:
             )
         )
 
+    def compute_timeout(self) -> int:
+        table = {0: 60, 50: 60, 100: 90, 150: 120, 200: 180}
+        if self.image_size in table:
+            return table[self.image_size]
+        nearest = min(table.keys(), key=lambda k: abs(k - int(self.image_size or 0)))
+        return table[nearest]
+
     async def update_refreshing_status(self, refreshing):
         entity = self.hass.data[DOMAIN]["entities"].get(
             "updating_shopping_list_with_grocy"
@@ -1044,8 +1151,6 @@ class ShoppingListWithGrocyApi:
             )
 
             if should_update:
-                self.last_db_changed_time = last_db_changed_time
-
                 await self.update_refreshing_status(True)
                 titles = [
                     "products",
@@ -1057,15 +1162,23 @@ class ShoppingListWithGrocyApi:
                     "quantity_units",
                 ]
 
+                t = self.compute_timeout()
+
                 if self.disable_timeout:
                     results = await asyncio.gather(
-                        *(self.fetch_list(path) for path in titles)
+                        *(self.fetch_list(path) for path in titles),
+                        return_exceptions=True,
                     )
                 else:
-                    async with timeout(60):
+                    async with timeout(t):
                         results = await asyncio.gather(
-                            *(self.fetch_list(path) for path in titles)
+                            *(self.fetch_list(path) for path in titles),
+                            return_exceptions=True,
                         )
+
+                for idx, r in enumerate(results):
+                    if isinstance(r, Exception):
+                        LOGGER.warning("Fetch %s failed: %s", titles[idx], r)
 
                 self.final_data = dict(zip(titles, results))
 
@@ -1073,19 +1186,22 @@ class ShoppingListWithGrocyApi:
                     self.final_data["homeassistant_products"] = (
                         await self.parse_products(self.final_data)
                     )
-
                     self.final_data["shopping_lists_data"] = self.build_item_list(
                         self.final_data
                     )
                 else:
-                    async with timeout(60):
+                    async with timeout(t):
                         self.final_data["homeassistant_products"] = (
                             await self.parse_products(self.final_data)
                         )
-
                         self.final_data["shopping_lists_data"] = self.build_item_list(
                             self.final_data
                         )
+
+                self.last_db_changed_time = last_db_changed_time
+                self.hass.async_create_task(
+                    self._kick_off_image_fetches(self.final_data)
+                )
 
         finally:
             await self.update_refreshing_status(False)

@@ -11,10 +11,8 @@ from homeassistant.components.todo import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.entity_registry import async_get
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -58,13 +56,6 @@ class ShoppingListWithGrocyTodoListEntity(
 
         self._update_supported_features()
 
-        LOGGER.debug(
-            "Initialized ShoppingListWithGrocyTodoListEntity: name='%s', unique_id='%s', entity_id='%s'",
-            self._attr_name,
-            self._attr_unique_id,
-            self.entity_id,
-        )
-
     @property
     def available(self) -> bool:
         """Return if entity is available."""
@@ -72,7 +63,13 @@ class ShoppingListWithGrocyTodoListEntity(
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        LOGGER.debug("Coordinator update received for Todo entity %s", self.entity_id)
+
+        if self.coordinator.data is None:
+            LOGGER.warning(
+                "Coordinator data is None during _handle_coordinator_update for %s; skipping update",
+                self.entity_id,
+            )
+            return
 
         shopping_lists_data = self.coordinator.data.get("shopping_lists_data", [])
         if shopping_lists_data:
@@ -80,14 +77,8 @@ class ShoppingListWithGrocyTodoListEntity(
             for list_data in shopping_lists_data:
                 if str(list_data.get("id")) == str(self._list_id):
                     self._data = list_data
-                    LOGGER.debug(
-                        "Updated _data for list %s with %d products",
-                        self._list_id,
-                        len(list_data.get("products", [])),
-                    )
                     break
         else:
-
             shopping_lists = self.coordinator.api.build_item_list(self.coordinator.data)
             shopping_list = next(
                 (lst for lst in shopping_lists if lst["id"] == self._list_id), None
@@ -196,12 +187,8 @@ class ShoppingListWithGrocyTodoListEntity(
                 item.summary, shopping_list_id=self._list_id
             )
 
-            LOGGER.debug("Full result on item '%s': %s", item.summary, result)
             if result["success"]:
-                LOGGER.debug(
-                    "Successfully created item '%s' in Grocy via bidirectional sync",
-                    item.summary,
-                )
+
                 new_product = {
                     "name": f"{result['product_name']} (x{result['quantity']})",
                     "shop_list_id": f"temp_{result['product_id']}",
@@ -254,7 +241,7 @@ class ShoppingListWithGrocyTodoListEntity(
                     yaml_service = (
                         "service: shopping_list_with_grocy.select_choice_by_number\n"
                         "data:\n"
-                        "\u00A0\u00A0choice_number: [REPLACE_WITH_NUMBER_FROM_LIST_ABOVE]"
+                        "\u00a0\u00a0choice_number: [REPLACE_WITH_NUMBER_FROM_LIST_ABOVE]"
                     )
 
                     language = self.hass.config.language or "en"
@@ -294,43 +281,22 @@ class ShoppingListWithGrocyTodoListEntity(
                     "timestamp": time.time(),
                 }
 
-                LOGGER.debug(
-                    "Before: hass.data[DOMAIN].keys() = %s",
-                    list(self.hass.data[DOMAIN].keys()),
-                )
                 if "recent_multiple_choices" not in self.hass.data[DOMAIN]:
                     self.hass.data[DOMAIN]["recent_multiple_choices"] = {}
-                    LOGGER.debug(
-                        "recent_multiple_choices initialized in hass.data[DOMAIN]"
-                    )
-                else:
-                    LOGGER.debug(
-                        "recent_multiple_choices already exists: %s",
-                        self.hass.data[DOMAIN]["recent_multiple_choices"],
-                    )
 
                 normalized_name = result["search_term"].strip().lower()
-                LOGGER.debug("Storing choice for normalized_name='%s'", normalized_name)
                 self.hass.data[DOMAIN]["recent_multiple_choices"][normalized_name] = {
                     "timestamp": time.time(),
                     "matches_count": len(matches),
                     "choice_key": choice_key,
                 }
-                LOGGER.debug(
-                    "After storing: recent_multiple_choices = %s",
-                    self.hass.data[DOMAIN]["recent_multiple_choices"],
-                )
 
                 await asyncio.sleep(0.1)
-                LOGGER.debug(
-                    "Sending dispatcher signal: grocy_multiple_choices_updated"
-                )
                 async_dispatcher_send(
                     self.hass,
                     "grocy_multiple_choices_updated",
                     {"product_name": normalized_name, "matches_count": len(matches)},
                 )
-                LOGGER.debug("Dispatcher signal sent successfully")
 
                 self.async_write_ha_state()
 
@@ -355,12 +321,6 @@ class ShoppingListWithGrocyTodoListEntity(
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """Update an existing todo item."""
-        LOGGER.debug(
-            "Updating todo item: %s (UID: %s, Status: %s)",
-            item.summary,
-            item.uid,
-            item.status,
-        )
 
         try:
 
@@ -379,11 +339,7 @@ class ShoppingListWithGrocyTodoListEntity(
 
             try:
                 await self.api.update_grocy_shoppinglist_product(int(item.uid), checked)
-                LOGGER.debug(
-                    "Successfully updated item %s to status: %s",
-                    item.uid,
-                    "completed" if checked else "needs action",
-                )
+
             except Exception as e:
                 LOGGER.error("Failed to update item %s in Grocy: %s", item.uid, e)
 
@@ -417,26 +373,82 @@ async def async_setup_entry(
     if "shopping_lists" not in hass.data[DOMAIN]:
         hass.data[DOMAIN]["shopping_lists"] = []
 
-    shopping_lists_data = coordinator.data.get("shopping_lists_data", [])
-    fallback_lists = coordinator.data.get("shopping_lists", [])
+    def _create_entities_from_data():
+        shopping_lists_data = coordinator.data.get("shopping_lists_data", [])
+        fallback_lists = coordinator.data.get("shopping_lists", [])
 
-    if shopping_lists_data:
-        LOGGER.debug(
-            "Found %d shopping lists in coordinator shopping_lists_data",
-            len(shopping_lists_data),
-        )
-        lists = shopping_lists_data
-    else:
-        LOGGER.debug(
-            "Using fallback: Found %d shopping lists in coordinator data",
-            len(fallback_lists),
-        )
-        lists = fallback_lists
+        lists = shopping_lists_data if shopping_lists_data else fallback_lists
 
-    entities = [
-        ShoppingListWithGrocyTodoListEntity(hass, coordinator, list_data, "SWLG -")
-        for list_data in lists
-    ]
+        entities = [
+            ShoppingListWithGrocyTodoListEntity(hass, coordinator, list_data, "SWLG -")
+            for list_data in lists
+        ]
 
-    async_add_entities(entities)
-    LOGGER.debug("Added %d shopping lists to To-do platform", len(entities))
+        if entities:
+            async_add_entities(entities)
+            LOGGER.debug("Added %d shopping lists to To-do platform", len(entities))
+        else:
+            try:
+                keys_info = {
+                    k: (len(v) if hasattr(v, "__len__") else "?")
+                    for k, v in (coordinator.data or {}).items()
+                }
+            except Exception:
+                keys_info = {"error": "failed to inspect coordinator.data"}
+
+            LOGGER.debug(
+                "No shopping lists found for entry %s; coordinator.data keys: %s",
+                config_entry.entry_id,
+                keys_info,
+            )
+
+    if coordinator.data is not None:
+        _create_entities_from_data()
+        return
+
+    retry_interval = 5
+    retry_timeout_seconds = 5 * 60
+    deadline = hass.loop.time() + retry_timeout_seconds
+
+    retry_handles = hass.data[DOMAIN].setdefault("todo_retry_handles", {})
+
+    async def _attempt_setup(_now):
+        if coordinator.data is not None:
+            try:
+                _create_entities_from_data()
+            finally:
+                handle = retry_handles.pop(config_entry.entry_id, None)
+                if handle:
+                    try:
+                        handle()
+                    except Exception:
+                        LOGGER.debug("Failed to cancel retry handle", exc_info=True)
+            return
+
+        if hass.loop.time() < deadline:
+            retry_handles[config_entry.entry_id] = async_call_later(
+                hass, retry_interval, _attempt_setup
+            )
+            LOGGER.debug(
+                "Coordinator data still missing for entry %s; will retry in %ds",
+                config_entry.entry_id,
+                retry_interval,
+            )
+        else:
+            handle = retry_handles.pop(config_entry.entry_id, None)
+            if handle:
+                try:
+                    handle()
+                except Exception:
+                    LOGGER.debug(
+                        "Failed to cancel retry handle on deadline", exc_info=True
+                    )
+            LOGGER.error(
+                "Timeout waiting for coordinator data (after %d seconds) for entry %s; aborting todo setup",
+                retry_timeout_seconds,
+                config_entry.entry_id,
+            )
+
+    retry_handles[config_entry.entry_id] = async_call_later(hass, 2, _attempt_setup)
+
+    return

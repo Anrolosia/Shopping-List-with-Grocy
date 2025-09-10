@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 from statistics import mean
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from homeassistant.util import dt
 
@@ -53,19 +53,14 @@ class PurchasePredictionEngine:
     def _calculate_consumption_score(self, history: List[Dict]) -> float:
         """Calculate consumption score based on purchase frequency and patterns."""
         if not history:
-            LOGGER.debug("No history provided for consumption score calculation")
             return 0.0
 
         purchases = []
-        LOGGER.debug(
-            "Processing %d history entries for consumption patterns", len(history)
-        )
 
         for i in range(1, len(history)):
             try:
                 prev_state = float(history[i - 1].get("state", "0"))
                 curr_state = float(history[i].get("state", "0"))
-                LOGGER.debug("State change: %f -> %f", prev_state, curr_state)
 
                 prev_changed = history[i - 1].get("last_changed")
                 curr_changed = history[i].get("last_changed")
@@ -80,11 +75,7 @@ class PurchasePredictionEngine:
                     time_diff = (curr_local - prev_local).days or 1
                     purchase_frequency = 1.0 / time_diff if time_diff > 0 else 1.0
                     purchases.append(purchase_frequency)
-                    LOGGER.debug(
-                        "Found purchase pattern: frequency %f", purchase_frequency
-                    )
-            except (ValueError, TypeError, AttributeError) as e:
-                LOGGER.debug("Error processing state change: %s", e)
+            except (ValueError, TypeError, AttributeError):
                 continue
 
         avg_frequency = mean(purchases) if purchases else 0.0
@@ -110,8 +101,7 @@ class PurchasePredictionEngine:
                     if local_date > cutoff_date:
                         monthly_counts[local_date.month][local_date.year] += 1
                         valid_entries += 1
-            except (AttributeError, TypeError, ValueError) as e:
-                LOGGER.debug("Error processing history entry for seasonal score: %s", e)
+            except (AttributeError, TypeError, ValueError):
                 continue
 
         if valid_entries == 0:
@@ -152,22 +142,18 @@ class PurchasePredictionEngine:
     def _calculate_consumption_rate(self, history: List[Dict]) -> float:
         """Calculate consumption rate based on purchase intervals."""
         if not history:
-            LOGGER.debug("No history provided for consumption rate calculation")
             return 0.0
 
         purchase_dates = []
-        LOGGER.debug("Processing %d history entries for consumption", len(history))
 
         for entry in history:
             try:
                 last_changed = entry.get("last_changed")
                 if isinstance(last_changed, datetime):
                     state = float(entry.get("state", "0"))
-                if state > 0:
-                    purchase_dates.append(dt.as_local(last_changed))
-                    LOGGER.debug("Found purchase activity: %s", last_changed)
-            except (ValueError, TypeError, AttributeError) as e:
-                LOGGER.debug("Error processing history entry: %s", e)
+                    if state > 0:
+                        purchase_dates.append(dt.as_local(last_changed))
+            except (ValueError, TypeError, AttributeError):
                 continue
 
         if len(purchase_dates) < 2:
@@ -195,11 +181,6 @@ class PurchasePredictionEngine:
                 try:
                     current_list_quantity = float(history[-1]["state"])
                     if current_list_quantity > 0:
-                        LOGGER.debug(
-                            "%s is already in shopping list (quantity: %f), skipping analysis",
-                            friendly_name,
-                            current_list_quantity,
-                        )
                         return {
                             "score": 0.0,
                             "confidence": 1.0,
@@ -211,22 +192,8 @@ class PurchasePredictionEngine:
                                 }
                             ],
                         }
-                except (ValueError, TypeError) as e:
-                    LOGGER.debug(
-                        "Error checking shopping list state for %s: %s",
-                        friendly_name,
-                        e,
-                    )
-
-            LOGGER.debug(
-                "Analyzing %s with %d history entries", friendly_name, len(history)
-            )
-            LOGGER.debug(
-                "Analysis config: weights=(consumption=%.2f, frequency=%.2f, seasonal=%.2f)",
-                self.consumption_weight,
-                self.frequency_weight,
-                self.seasonal_weight,
-            )
+                except (ValueError, TypeError):
+                    pass
 
             factors = []
             total_score = 0.0
@@ -289,16 +256,6 @@ class PurchasePredictionEngine:
 
             normalized_score = (
                 total_score / active_weights if active_weights > 0 else 0.0
-            )
-
-            LOGGER.debug(
-                "%s final analysis: score=%.2f (total=%.2f/weights=%.2f), confidence=%.2f, factors=%d",
-                friendly_name,
-                normalized_score,
-                total_score,
-                active_weights,
-                confidence,
-                len(factors),
             )
 
             return {

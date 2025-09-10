@@ -299,9 +299,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     pattern = re.compile(r"list_\d+_.*")
 
     async def async_add_or_update_dynamic_sensor(product):
-        product_id = product["product_id"]
+        product_id = str(product["product_id"])
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
-        LOGGER.debug("Attempting to add/update sensor: %s", entity_id)
 
         existing_sensor = hass.states.get(entity_id)
 
@@ -333,12 +332,28 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 if key not in attributes_to_remove:
                     updated_attributes[key] = value
 
-            new_state = str(product["qty_in_shopping_lists"])
+            if "entity_picture" in product.get("attributes", {}):
+                updated_attributes["entity_picture"] = product["attributes"][
+                    "entity_picture"
+                ]
+
+            new_state = str(product.get("qty_in_shopping_lists", existing_state))
 
             state_changed = new_state != existing_state
             attributes_changed = updated_attributes != existing_attributes
 
-            if state_changed or attributes_changed:
+            force_picture_update = False
+            if "entity_picture" in product.get("attributes", {}):
+                try:
+                    current_pic = existing_attributes.get("entity_picture")
+                    incoming_pic = product["attributes"].get("entity_picture")
+                    if current_pic != incoming_pic:
+                        force_picture_update = True
+                except Exception:
+                    force_picture_update = True
+
+            if state_changed or attributes_changed or force_picture_update:
+
                 hass.states.async_set(
                     entity_id, new_state, attributes=updated_attributes
                 )
