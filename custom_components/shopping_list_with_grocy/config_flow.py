@@ -294,7 +294,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                 "description": "Configure selection criteria to handle multiple match cases when multiple products are found matching your input."
             },
         )
-        )
 
     async def async_step_advanced(
         self, user_input: dict[str, Any] | None = None
