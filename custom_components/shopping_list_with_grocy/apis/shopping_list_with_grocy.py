@@ -1002,6 +1002,7 @@ class ShoppingListWithGrocyApi:
         self, item_summary: str, shopping_list_id: int = 1, selection_criteria: dict | None = None
     ) -> dict:
         """Handle creation of a todo item from Home Assistant."""
+        # Step 1: Perform initial checks
         if not self.bidirectional_sync_enabled or self.bidirectional_sync_stopped:
             LOGGER.error("🚫 Bidirectional sync is disabled or stopped")
             return {"success": False, "reason": "sync_disabled"}
@@ -1015,138 +1016,169 @@ class ShoppingListWithGrocyApi:
                 return {"success": False, "reason": "no_data_safety_stop"}
 
         try:
-            product_name, quantity = self.extract_product_name_from_ha_item(
-                item_summary
-            )
-
-            LOGGER.error(
-                "🔍 DEBUG: item_summary='%s' -> product_name='%s', quantity=%d",
-                item_summary,
-                product_name,
-                quantity,
+            product_name, quantity = self.extract_product_name_from_ha_item(item_summary)
+            LOGGER.debug(
+                "🔍 Processing: item_summary='%s' -> product_name='%s', quantity=%d",
+                item_summary, product_name, quantity,
             )
 
             if not product_name:
                 LOGGER.error("❌ Empty product name extracted from '%s'", item_summary)
                 return {"success": False, "reason": "empty_name"}
 
+            # Step 2: Search products in Grocy
             search_result = await self.search_product_in_grocy(product_name)
+            matches = search_result.get("matches", [])
 
-            if search_result["found"]:
-                matches = search_result["matches"]
-                
-                # Apply selection criteria if provided
-                if selection_criteria:
-                    original_count = len(matches)
-                    matches = self.apply_selection_criteria(matches, selection_criteria)
-                    if len(matches) != original_count:
-                        LOGGER.debug(
-                            "Selection criteria applied: %d -> %d matches",
-                            original_count,
-                            len(matches),
-                        )
-
-                should_auto_add = (
-                    search_result.get("search_type") == "case_only"
-                    or (
-                        search_result.get("search_type") == "exact"
-                        and len(matches) == 1
-                    )
-                    or (
-                        len(matches) == 1
-                        and self.is_case_only_difference(
-                            product_name, matches[0]["name"]
-                        )
-                    )
-                )
-
-                if should_auto_add:
-
-                    matched_product = matches[0]
-                    search_type = search_result.get("search_type", "unknown")
-
-                    add_result = await self.add_product_to_grocy_shopping_list(
-                        matched_product["id"], quantity, shopping_list_id
+            # Step 3: Apply selection criteria to filter matches
+            if selection_criteria and matches:
+                original_count = len(matches)
+                matches = self.apply_selection_criteria(matches, selection_criteria)
+                if len(matches) != original_count:
+                    LOGGER.debug(
+                        "Selection criteria applied: %d -> %d matches",
+                        original_count, len(matches),
                     )
 
-                    if add_result:
-                        return {
-                            "success": True,
-                            "reason": "auto_added_case_match",
-                            "product_name": matched_product["name"],
-                            "product_id": matched_product["id"],
-                            "quantity": quantity,
-                            "original_search": product_name,
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "reason": "auto_add_failed",
-                            "error": "Failed to add product to shopping list",
-                        }
-                else:
-                    # Check if we should suggest create option when matches exist
-                    suggest_create_only_no_match = selection_criteria.get("suggest_create_only_no_match", False) if selection_criteria else False
-                    
-                    matches_with_create_option = matches.copy()
-                    
-                    # Only add create option if suggest_create_only_no_match is False
-                    # or if there are no matches (which shouldn't happen in this branch, but safety first)
-                    if not suggest_create_only_no_match:
-                        create_option_text = await self.get_frontend_translation(
-                            "create_new_product", product_name=product_name
-                        )
-                        matches_with_create_option.append(
-                            {
-                                "id": "create_new",
-                                "name": create_option_text,
-                                "similarity": 0.0,
-                                "is_create_option": True,
-                            }
-                        )
-                        LOGGER.debug(
-                            "Added create option to %d matches (suggest_create_only_no_match=False)",
-                            len(matches),
-                        )
-                    else:
-                        LOGGER.debug(
-                            "Skipped create option for %d matches (suggest_create_only_no_match=True)",
-                            len(matches),
-                        )
+            # Step 4: Add create option if applicable
+            final_options = await self._prepare_final_options(
+                matches, product_name, selection_criteria, search_result.get("search_type", "unknown")
+            )
 
-                    return {
-                        "success": False,
-                        "reason": "multiple_matches",
-                        "matches": matches_with_create_option,
-                        "search_term": product_name,
-                        "quantity": quantity,
-                        "shopping_list_id": shopping_list_id,
-                    }
-
-            else:
-                create_option_text = await self.get_frontend_translation(
-                    "create_new_product", product_name=product_name
-                )
-
-                return {
-                    "success": False,
-                    "reason": "multiple_matches",
-                    "matches": [
-                        {
-                            "id": "create_new",
-                            "name": create_option_text,
-                            "similarity": 0.0,
-                            "is_create_option": True,
-                        }
-                    ],
-                    "search_term": product_name,
-                    "quantity": quantity,
-                    "shopping_list_id": shopping_list_id,
-                }
+            # Step 5: Execute appropriate action
+            return await self._execute_action(
+                final_options, product_name, quantity, shopping_list_id, search_result.get("search_type", "unknown")
+            )
 
         except Exception as e:
             LOGGER.error("❌ Error handling HA todo item creation: %s", e)
             return {"success": False, "reason": "error", "error": str(e)}
+
+    async def _prepare_final_options(
+        self, matches: list, product_name: str, selection_criteria: dict | None, search_type: str | None
+    ) -> list:
+        """Prepare the final list of options including create option if needed."""
+        final_options = matches.copy()
+        
+        # Determine if we should add create option
+        should_add_create = True
+        if selection_criteria:
+            suggest_create_only_no_match = selection_criteria.get("suggest_create_only_no_match", False)
+            # Don't add create option if we have matches and the criterion is enabled
+            if suggest_create_only_no_match and matches:
+                should_add_create = False
+                LOGGER.debug(
+                    "Skipped create option for %d matches (suggest_create_only_no_match=True)",
+                    len(matches),
+                )
+
+        # Add create option if needed
+        if should_add_create:
+            create_option_text = await self.get_frontend_translation(
+                "create_new_product", product_name=product_name
+            )
+            final_options.append({
+                "id": "create_new",
+                "name": create_option_text,
+                "similarity": 0.0,
+                "is_create_option": True,
+            })
+            if matches:  # Only log if we had matches
+                LOGGER.debug(
+                    "Added create option to %d matches (suggest_create_only_no_match=False)",
+                    len(matches),
+                )
+
+        return final_options
+
+    async def _execute_action(
+        self, final_options: list, product_name: str, quantity: int, shopping_list_id: int, search_type: str | None
+    ) -> dict:
+        """Execute the appropriate action based on the final options."""
+        # Auto-add logic for special cases
+        if self._should_auto_add(final_options, product_name, search_type):
+            return await self._auto_add_product(final_options[0], product_name, quantity, shopping_list_id)
+        
+        # Auto-select if only one non-create option remains
+        if len(final_options) == 1 and not final_options[0].get("is_create_option", False):
+            return await self._auto_select_product(final_options[0], product_name, quantity, shopping_list_id)
+        
+        # Return multiple options for user selection
+        return {
+            "success": False,
+            "reason": "multiple_matches",
+            "matches": final_options,
+            "search_term": product_name,
+            "quantity": quantity,
+            "shopping_list_id": shopping_list_id,
+        }
+
+    def _should_auto_add(self, final_options: list, product_name: str, search_type: str | None) -> bool:
+        """Determine if we should auto-add the product without user intervention."""
+        if not final_options or final_options[0].get("is_create_option", False):
+            return False
+        
+        return (
+            search_type == "case_only"
+            or (search_type == "exact" and len([opt for opt in final_options if not opt.get("is_create_option", False)]) == 1)
+            or (len([opt for opt in final_options if not opt.get("is_create_option", False)]) == 1 
+                and self.is_case_only_difference(product_name, final_options[0]["name"]))
+        )
+
+    async def _auto_add_product(
+        self, product: dict, original_search: str, quantity: int, shopping_list_id: int
+    ) -> dict:
+        """Auto-add a product that matches special criteria."""
+        LOGGER.debug("Auto-adding product: %s (ID: %s)", product.get("name"), product.get("id"))
+        
+        add_result = await self.add_product_to_grocy_shopping_list(
+            product["id"], quantity, shopping_list_id
+        )
+
+        if add_result:
+            return {
+                "success": True,
+                "reason": "auto_added_case_match",
+                "product_name": product["name"],
+                "product_id": product["id"],
+                "quantity": quantity,
+                "original_search": original_search,
+            }
+        else:
+            return {
+                "success": False,
+                "reason": "auto_add_failed",
+                "error": "Failed to add product to shopping list",
+            }
+
+    async def _auto_select_product(
+        self, product: dict, original_search: str, quantity: int, shopping_list_id: int
+    ) -> dict:
+        """Auto-select a product when it's the only option after filtering."""
+        LOGGER.debug(
+            "Auto-selecting single remaining product after filtering: %s (ID: %s)",
+            product.get("name"), product.get("id"),
+        )
+        
+        add_result = await self.add_product_to_grocy_shopping_list(
+            product["id"], quantity, shopping_list_id
+        )
+
+        if add_result:
+            return {
+                "success": True,
+                "reason": "auto_selected_after_filtering",
+                "product_name": product["name"],
+                "product_id": product["id"],
+                "quantity": quantity,
+                "original_search": original_search,
+            }
+        else:
+            return {
+                "success": False,
+                "reason": "auto_select_failed_after_filtering",
+                "error": "Failed to add filtered product to shopping list",
+            }
 
     def stop_bidirectional_sync(self, reason: str = "manual"):
         """Emergency stop for bidirectional sync."""
