@@ -30,7 +30,16 @@
                     "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
                     "show_advanced": "Show Advanced Algorithm Settings (WARNING: May break functionality if modified incorrectly)",
-                    "enable_bidirectional_sync": "Use bidirectional sync"
+                    "enable_bidirectional_sync": "Use bidirectional sync",
+                    "show_selection_criteria": "Configure Selection Criteria (Multiple Match Handling)"
+                }
+            },
+            "selection_criteria": {
+                "title": "Selection Criteria - Multiple Match Handling",
+                "description": "Configure the criteria for handling cases when multiple products match your input during bidirectional sync. These settings help determine which product to select automatically.",
+                "data": {
+                    "prefer_generic_products": "Prefer generic products (without parent)",
+                    "auto_select_first": "Automatically select the first result"
                 }
             },
             "advanced": {
@@ -47,7 +56,12 @@
         "error": {
             "invalid_api_url": "Grocy's URL is invalid, please use valid URL (http:// or https:// with either domain name or ip address)",
             "weight_sum_error": "ERROR: The algorithm weights must sum to exactly 1.0! Current sum is invalid. Please adjust the values so they add up to 1.0.",
-            "invalid_analysis_settings": "Invalid algorithm settings provided. Please check your values and try again."
+            "invalid_analysis_settings": "Invalid algorithm settings provided. Please check your values and try again.",
+            "invalid_selection_criteria": "Invalid selection criteria provided. Please check your values and try again.",
+            "bidirectional_sync_required": "Selection criteria require bidirectional sync to be enabled. Please go back and enable bidirectional synchronization first."
+        },
+        "abort": {
+            "bidirectional_sync_disabled": "Selection criteria are only available when bidirectional sync is enabled."
         }
     },
     "services": {

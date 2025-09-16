@@ -30,7 +30,16 @@
                     "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
                     "show_advanced": "⚙️ Mostrar Configuración Avanzada del Algoritmo (⚠️ Puede romper la funcionalidad si se modifica incorrectamente)",
-                    "enable_bidirectional_sync": "Usar la sincronización bidireccional"
+                    "enable_bidirectional_sync": "Usar la sincronización bidireccional",
+                    "show_selection_criteria": "Configurar criterios de selección (manejo de coincidencias múltiples)"
+                }
+            },
+            "selection_criteria": {
+                "title": "Criterios de selección - Manejo de coincidencias múltiples",
+                "description": "Configure los criterios para manejar casos donde múltiples productos coinciden con su entrada durante la sincronización bidireccional. Estas configuraciones ayudan a determinar qué producto seleccionar automáticamente.",
+                "data": {
+                    "prefer_generic_products": "Preferir productos genéricos (sin padre)",
+                    "auto_select_first": "Seleccionar automáticamente el primer resultado"
                 }
             },
             "advanced": {
@@ -47,7 +56,12 @@
         "error": {
             "invalid_api_url": "La URL de Grocy no es válida. Por favor, inténtalo de nuevo con una URL válida (http:// o https:// con el nombre del dominio o dirección IP)",
             "weight_sum_error": "⚠️ ERROR: ¡Los pesos del algoritmo deben sumar exactamente 1.0! La suma actual es inválida. Por favor ajuste los valores para que sumen 1.0.",
-            "invalid_analysis_settings": "Configuración de algoritmo inválida proporcionada. Por favor verifique sus valores e intente de nuevo."
+            "invalid_analysis_settings": "Configuración de algoritmo inválida proporcionada. Por favor verifique sus valores e intente de nuevo.",
+            "invalid_selection_criteria": "Criterios de selección inválidos proporcionados. Por favor verifique sus valores e intente nuevamente.",
+            "bidirectional_sync_required": "Los criterios de selección requieren que la sincronización bidireccional esté habilitada. Por favor regrese y habilite primero la sincronización bidireccional."
+        },
+        "abort": {
+            "bidirectional_sync_disabled": "Los criterios de selección solo están disponibles cuando la sincronización bidireccional está habilitada."
         }
     },
     "services": {

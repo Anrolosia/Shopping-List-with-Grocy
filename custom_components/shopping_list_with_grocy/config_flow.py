@@ -20,7 +20,15 @@ from .analysis_const import (
     DEFAULT_SCORE_THRESHOLD,
     DEFAULT_SEASONAL_WEIGHT,
 )
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    CONF_SELECTION_CRITERIA,
+    CONF_PREFER_GENERIC_PRODUCTS,
+    CONF_AUTO_SELECT_FIRST,
+    DEFAULT_PREFER_GENERIC_PRODUCTS,
+    DEFAULT_AUTO_SELECT_FIRST,
+)
+from .schema import SELECTION_CRITERIA_SCHEMA
 from .services import async_create_restart_repair_issue
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,6 +66,12 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                 CONF_SEASONAL_WEIGHT: DEFAULT_SEASONAL_WEIGHT,
                 CONF_SCORE_THRESHOLD: DEFAULT_SCORE_THRESHOLD,
             }
+        
+        if CONF_SELECTION_CRITERIA not in self.options:
+            self.options[CONF_SELECTION_CRITERIA] = {
+                CONF_PREFER_GENERIC_PRODUCTS: DEFAULT_PREFER_GENERIC_PRODUCTS,
+                CONF_AUTO_SELECT_FIRST: DEFAULT_AUTO_SELECT_FIRST,
+            }
         self._data = {"unique_id": self.options.get("unique_id")}
 
     async def async_step_init(
@@ -80,9 +94,32 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                             "image_download_size": user_input.get(
                                 "image_download_size", 100
                             ),
+                            "enable_bidirectional_sync": user_input.get(
+                                "enable_bidirectional_sync", False
+                            ),
                         }
                     )
                     return await self.async_step_advanced()
+            
+            if user_input.get("enable_bidirectional_sync", False) and user_input.get("show_selection_criteria", False):
+                if not is_valid_url(user_input.get("api_url", "")):
+                    self._errors["base"] = "invalid_api_url"
+                else:
+                    self.options.update(
+                        {
+                            "api_url": user_input["api_url"],
+                            "api_key": user_input["api_key"],
+                            "verify_ssl": user_input.get("verify_ssl", True),
+                            "disable_timeout": user_input.get("disable_timeout", False),
+                            "image_download_size": user_input.get(
+                                "image_download_size", 100
+                            ),
+                            "enable_bidirectional_sync": user_input.get(
+                                "enable_bidirectional_sync", False
+                            ),
+                        }
+                    )
+                    return await self.async_step_selection_criteria()
 
             if not is_valid_url(user_input.get("api_url", "")):
                 self._errors["base"] = "invalid_api_url"
@@ -105,6 +142,13 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                             CONF_FREQUENCY_WEIGHT: DEFAULT_FREQUENCY_WEIGHT,
                             CONF_SEASONAL_WEIGHT: DEFAULT_SEASONAL_WEIGHT,
                             CONF_SCORE_THRESHOLD: DEFAULT_SCORE_THRESHOLD,
+                        },
+                    ),
+                    CONF_SELECTION_CRITERIA: self.options.get(
+                        CONF_SELECTION_CRITERIA,
+                        {
+                            CONF_PREFER_GENERIC_PRODUCTS: DEFAULT_PREFER_GENERIC_PRODUCTS,
+                            CONF_AUTO_SELECT_FIRST: DEFAULT_AUTO_SELECT_FIRST,
                         },
                     ),
                 }
@@ -142,38 +186,114 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
 
                 return self.async_create_entry(title="", data=updated_data)
 
+        # Create base schema
+        base_schema = {
+            vol.Required(
+                "api_url", default=self.options.get("api_url", "")
+            ): str,
+            vol.Required(
+                "verify_ssl", default=self.options.get("verify_ssl", True)
+            ): bool,
+            vol.Required(
+                "api_key", default=self.options.get("api_key", "")
+            ): str,
+            vol.Optional(
+                "disable_timeout",
+                default=self.options.get("disable_timeout", False),
+            ): bool,
+            vol.Optional(
+                "image_download_size",
+                default=self.options.get("image_download_size", 100),
+            ): vol.All(vol.Coerce(int), vol.In([0, 50, 100, 150, 200])),
+            vol.Optional(
+                "enable_bidirectional_sync",
+                default=self.options.get("enable_bidirectional_sync", False),
+            ): bool,
+            vol.Optional("show_advanced", default=False): bool,
+            vol.Optional("show_selection_criteria", default=False): bool,
+        }
+
         return self.async_show_form(
             step_id="init",
+            data_schema=vol.Schema(base_schema),
+            errors=self._errors,
+            description_placeholders={
+                "disclaimer": "ℹ️ The shopping suggestions work great with default settings. Only access advanced settings if you need to fine-tune the algorithm.",
+            },
+        )
+
+    async def async_step_selection_criteria(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle selection criteria configuration."""
+        self._errors = {}
+        
+        # Check if bidirectional sync is enabled in current options or user input
+        current_sync_enabled = self.options.get("enable_bidirectional_sync", False)
+        
+        # Show informative form if bidirectional sync is not enabled
+        if not current_sync_enabled:
+            return self.async_show_form(
+                step_id="selection_criteria",
+                data_schema=vol.Schema({}),
+                errors={"base": "bidirectional_sync_required"},
+                description_placeholders={
+                    "message": "Selection criteria are only available when bidirectional synchronization is enabled. Please go back and enable bidirectional synchronization first."
+                },
+            )
+        
+        current_settings = self.options.get(CONF_SELECTION_CRITERIA, {})
+
+        if user_input is not None:
+            try:
+                selection_criteria = {
+                    CONF_PREFER_GENERIC_PRODUCTS: user_input.get(
+                        CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
+                    ),
+                    CONF_AUTO_SELECT_FIRST: user_input.get(
+                        CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
+                    ),
+                }
+
+                selection_criteria = SELECTION_CRITERIA_SCHEMA(selection_criteria)
+            except vol.Invalid:
+                self._errors["base"] = "invalid_selection_criteria"
+
+            if not self._errors:
+                updated_data = dict(self.options)
+                updated_data[CONF_SELECTION_CRITERIA] = selection_criteria
+
+                old_settings = self.options.get(CONF_SELECTION_CRITERIA, {})
+                if old_settings != selection_criteria:
+                    await _create_restart_repair_issue(
+                        self.hass, "restart_required_settings"
+                    )
+
+                return self.async_create_entry(title="", data=updated_data)
+
+        return self.async_show_form(
+            step_id="selection_criteria",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        "api_url", default=self.options.get("api_url", "")
-                    ): str,
-                    vol.Required(
-                        "verify_ssl", default=self.options.get("verify_ssl", True)
-                    ): bool,
-                    vol.Required(
-                        "api_key", default=self.options.get("api_key", "")
-                    ): str,
                     vol.Optional(
-                        "disable_timeout",
-                        default=self.options.get("disable_timeout", False),
+                        CONF_PREFER_GENERIC_PRODUCTS,
+                        default=current_settings.get(
+                            CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
+                        ),
                     ): bool,
                     vol.Optional(
-                        "image_download_size",
-                        default=self.options.get("image_download_size", 100),
-                    ): vol.All(vol.Coerce(int), vol.In([0, 50, 100, 150, 200])),
-                    vol.Optional(
-                        "enable_bidirectional_sync",
-                        default=self.options.get("enable_bidirectional_sync", False),
+                        CONF_AUTO_SELECT_FIRST,
+                        default=current_settings.get(
+                            CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
+                        ),
                     ): bool,
-                    vol.Optional("show_advanced", default=False): bool,
                 }
             ),
             errors=self._errors,
             description_placeholders={
-                "disclaimer": "ℹ️ The shopping suggestions work great with default settings. Only access advanced settings if you need to fine-tune the algorithm."
+                "description": "Configure selection criteria to handle multiple match cases when multiple products are found matching your input."
             },
+        )
         )
 
     async def async_step_advanced(

@@ -18,7 +18,14 @@ from .analysis_const import (
     DEFAULT_SCORE_THRESHOLD,
     DEFAULT_SEASONAL_WEIGHT,
 )
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    CONF_SELECTION_CRITERIA,
+    CONF_PREFER_GENERIC_PRODUCTS,
+    CONF_AUTO_SELECT_FIRST,
+    DEFAULT_PREFER_GENERIC_PRODUCTS,
+    DEFAULT_AUTO_SELECT_FIRST,
+)
 
 
 def dictionary_to_schema(
@@ -47,6 +54,17 @@ ANALYSIS_SCHEMA = vol.Schema(
         ),
         Optional(CONF_SCORE_THRESHOLD, default=DEFAULT_SCORE_THRESHOLD): vol.All(
             vol.Coerce(float), vol.Range(min=0, max=1)
+        ),
+    }
+)
+
+SELECTION_CRITERIA_SCHEMA = vol.Schema(
+    {
+        Optional(CONF_PREFER_GENERIC_PRODUCTS, default=DEFAULT_PREFER_GENERIC_PRODUCTS): vol.All(
+            vol.Coerce(bool)
+        ),
+        Optional(CONF_AUTO_SELECT_FIRST, default=DEFAULT_AUTO_SELECT_FIRST): vol.All(
+            vol.Coerce(bool)
         ),
     }
 )

@@ -30,7 +30,16 @@
                     "disable_timeout": "Désactiver le timeout sur les appels réseau (⚠️ À vos risques et périls, peut causer une instabilité)",
                     "image_download_size": "Taille des images de produits téléchargées? (Sélectionnez 0 pour désactiver les images)",
                     "show_advanced": "⚙️ Afficher les paramètres avancés de l'algorithme (⚠️ Peut casser la fonctionnalité si modifié incorrectement)",
-                    "enable_bidirectional_sync": "Utiliser la synchronisation bidirectionnelle"
+                    "enable_bidirectional_sync": "Utiliser la synchronisation bidirectionnelle",
+                    "show_selection_criteria": "Configurer les critères de sélection (gestion des correspondances multiples)"
+                }
+            },
+            "selection_criteria": {
+                "title": "Critères de sélection - Gestion des correspondances multiples",
+                "description": "Configurez les critères pour gérer les cas où plusieurs produits correspondent à votre saisie lors de la synchronisation bidirectionnelle. Ces paramètres aident à déterminer quel produit sélectionner automatiquement.",
+                "data": {
+                    "prefer_generic_products": "Préférer les produits génériques (sans parent)",
+                    "auto_select_first": "Sélectionner automatiquement le premier résultat"
                 }
             },
             "advanced": {
@@ -47,7 +56,12 @@
         "error": {
             "invalid_api_url": "L'URL de Grocy n'est pas valide, veuillez utiliser une URL valide (http:// ou https:// avec un nom de domaine ou une adresse IP)",
             "weight_sum_error": "⚠️ ERREUR : Les poids de l'algorithme doivent totaliser exactement 1.0 ! La somme actuelle est invalide. Veuillez ajuster les valeurs pour qu'elles totalisent 1.0.",
-            "invalid_analysis_settings": "Paramètres d'algorithme invalides fournis. Veuillez vérifier vos valeurs et réessayer."
+            "invalid_analysis_settings": "Paramètres d'algorithme invalides fournis. Veuillez vérifier vos valeurs et réessayer.",
+            "invalid_selection_criteria": "Critères de sélection invalides fournis. Veuillez vérifier vos valeurs et réessayer.",
+            "bidirectional_sync_required": "Les critères de sélection nécessitent que la synchronisation bidirectionnelle soit activée. Veuillez revenir en arrière et activer d'abord la synchronisation bidirectionnelle."
+        },
+        "abort": {
+            "bidirectional_sync_disabled": "Les critères de sélection ne sont disponibles que lorsque la synchronisation bidirectionnelle est activée."
         }
     },
     "services": {

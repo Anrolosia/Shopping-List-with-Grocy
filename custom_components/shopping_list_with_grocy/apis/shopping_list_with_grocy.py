@@ -729,6 +729,41 @@ class ShoppingListWithGrocyApi:
         )
         return item_name, 1
 
+    def apply_selection_criteria(self, matches: list, selection_criteria: dict) -> list:
+        """Apply selection criteria to filter matches."""
+        if not matches or not selection_criteria:
+            return matches
+        
+        # Get configuration values
+        prefer_generic = selection_criteria.get("prefer_generic_products", False)
+        auto_select_first = selection_criteria.get("auto_select_first", False)
+        
+        # First criterion: prefer generic products (products without parent)
+        if prefer_generic:
+            generic_products = [match for match in matches if not match.get("parent_product_id")]
+            if generic_products:
+                matches = generic_products
+                LOGGER.debug(
+                    "Applied 'prefer generic products' filter: %d generic products found",
+                    len(generic_products),
+                )
+        
+        # Second criterion: auto-select first if enabled and only one match remains
+        if auto_select_first and len(matches) == 1:
+            LOGGER.debug("Auto-selecting first product: %s", matches[0].get("name"))
+            return matches
+        
+        # If auto_select_first is enabled but multiple matches remain, select the first one
+        if auto_select_first and len(matches) > 1:
+            selected_match = matches[0]
+            LOGGER.debug(
+                "Auto-selecting first product from multiple matches: %s",
+                selected_match.get("name"),
+            )
+            return [selected_match]
+        
+        return matches
+
     async def search_product_in_grocy(self, search_name: str) -> dict:
         """Search for a product in Grocy by name with exact, contains, and fuzzy matching."""
         if not search_name:
@@ -964,7 +999,7 @@ class ShoppingListWithGrocyApi:
             raise
 
     async def handle_ha_todo_item_creation(
-        self, item_summary: str, shopping_list_id: int = 1
+        self, item_summary: str, shopping_list_id: int = 1, selection_criteria: dict | None = None
     ) -> dict:
         """Handle creation of a todo item from Home Assistant."""
         if not self.bidirectional_sync_enabled or self.bidirectional_sync_stopped:
@@ -999,6 +1034,17 @@ class ShoppingListWithGrocyApi:
 
             if search_result["found"]:
                 matches = search_result["matches"]
+                
+                # Apply selection criteria if provided
+                if selection_criteria:
+                    original_count = len(matches)
+                    matches = self.apply_selection_criteria(matches, selection_criteria)
+                    if len(matches) != original_count:
+                        LOGGER.debug(
+                            "Selection criteria applied: %d -> %d matches",
+                            original_count,
+                            len(matches),
+                        )
 
                 should_auto_add = (
                     search_result.get("search_type") == "case_only"
