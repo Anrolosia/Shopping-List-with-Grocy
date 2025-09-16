@@ -267,14 +267,25 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 f"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_"
             ):
                 product_id = state.entity_id.split("_")[-1]
-                existing_sensor = DynamicProductSensor(
-                    coordinator,
-                    {
-                        "product_id": product_id,
-                        "name": state.name,
-                        "qty_in_shopping_lists": state.state,
-                    },
-                )
+                
+                # Try to get the product from coordinator data first
+                product_data = None
+                if hasattr(coordinator, '_parsed_data') and coordinator._parsed_data:
+                    product_data = coordinator._parsed_data.get(product_id)
+                
+                if product_data:
+                    # Use data from coordinator
+                    existing_sensor = DynamicProductSensor(coordinator, product_data)
+                else:
+                    # Fallback to state attributes for existing sensors
+                    existing_sensor = DynamicProductSensor(
+                        coordinator,
+                        {
+                            "product_id": product_id,
+                            "name": state.attributes.get("friendly_name", state.name),
+                            "qty_in_shopping_lists": state.state,
+                        },
+                    )
                 existing_entities.append(existing_sensor)
     else:
         # If product sensors are disabled, remove any existing product sensors
@@ -315,8 +326,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     pattern = re.compile(r"list_\d+_.*")
 
     async def async_add_or_update_dynamic_sensor(product):
-        # Check if product sensors are enabled
-        if not enable_product_sensors:
+        # Check current configuration to see if product sensors are enabled
+        current_config_data = config_entry.options if config_entry.options else config_entry.data
+        current_enable_product_sensors = current_config_data.get(CONF_ENABLE_PRODUCT_SENSORS, True)
+        
+        if not current_enable_product_sensors:
+            # If sensors are disabled, remove any existing sensor for this product
+            product_id = str(product["product_id"])
+            entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
+            
+            entity_registry = async_get(hass)
+            if entity_registry.async_is_registered(entity_id):
+                entity_registry.async_remove(entity_id)
+            
+            if hass.states.get(entity_id):
+                hass.states.async_remove(entity_id)
             return
             
         product_id = str(product["product_id"])
@@ -403,13 +427,16 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
         await asyncio.sleep(0.1)
 
+    # Always set up dispatchers, but they will check configuration dynamically
     async_dispatcher_connect(
         hass, f"{DOMAIN}_add_or_update_sensor", async_add_or_update_dynamic_sensor
     )
     async_dispatcher_connect(hass, f"{DOMAIN}_remove_sensor", async_remove_grocy_sensor)
 
-    for product in coordinator._parsed_data.values():
-        await async_add_or_update_dynamic_sensor(product)
+    # Only process existing products if product sensors are enabled
+    if enable_product_sensors and hasattr(coordinator, '_parsed_data') and coordinator._parsed_data:
+        for product in coordinator._parsed_data.values():
+            await async_add_or_update_dynamic_sensor(product)
 
 
 class DynamicProductSensor(CoordinatorEntity, SensorEntity):
