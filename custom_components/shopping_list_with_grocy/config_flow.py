@@ -25,8 +25,10 @@ from .const import (
     CONF_SELECTION_CRITERIA,
     CONF_PREFER_GENERIC_PRODUCTS,
     CONF_AUTO_SELECT_FIRST,
+    CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
     DEFAULT_PREFER_GENERIC_PRODUCTS,
     DEFAULT_AUTO_SELECT_FIRST,
+    DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
 )
 from .schema import SELECTION_CRITERIA_SCHEMA
 from .services import async_create_restart_repair_issue
@@ -100,26 +102,8 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         }
                     )
                     return await self.async_step_advanced()
-            
-            if user_input.get("enable_bidirectional_sync", False) and user_input.get("show_selection_criteria", False):
-                if not is_valid_url(user_input.get("api_url", "")):
-                    self._errors["base"] = "invalid_api_url"
-                else:
-                    self.options.update(
-                        {
-                            "api_url": user_input["api_url"],
-                            "api_key": user_input["api_key"],
-                            "verify_ssl": user_input.get("verify_ssl", True),
-                            "disable_timeout": user_input.get("disable_timeout", False),
-                            "image_download_size": user_input.get(
-                                "image_download_size", 100
-                            ),
-                            "enable_bidirectional_sync": user_input.get(
-                                "enable_bidirectional_sync", False
-                            ),
-                        }
-                    )
-                    return await self.async_step_selection_criteria()
+            if user_input.get("show_advanced", False):
+                return await self.async_step_advanced()
 
             if not is_valid_url(user_input.get("api_url", "")):
                 self._errors["base"] = "invalid_api_url"
@@ -149,6 +133,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         {
                             CONF_PREFER_GENERIC_PRODUCTS: DEFAULT_PREFER_GENERIC_PRODUCTS,
                             CONF_AUTO_SELECT_FIRST: DEFAULT_AUTO_SELECT_FIRST,
+                            CONF_SUGGEST_CREATE_ONLY_NO_MATCH: DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
                         },
                     ),
                 }
@@ -210,7 +195,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                 default=self.options.get("enable_bidirectional_sync", False),
             ): bool,
             vol.Optional("show_advanced", default=False): bool,
-            vol.Optional("show_selection_criteria", default=False): bool,
         }
 
         return self.async_show_form(
@@ -222,88 +206,17 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             },
         )
 
-    async def async_step_selection_criteria(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle selection criteria configuration."""
-        self._errors = {}
-        
-        # Check if bidirectional sync is enabled in current options or user input
-        current_sync_enabled = self.options.get("enable_bidirectional_sync", False)
-        
-        # Show informative form if bidirectional sync is not enabled
-        if not current_sync_enabled:
-            return self.async_show_form(
-                step_id="selection_criteria",
-                data_schema=vol.Schema({}),
-                errors={"base": "bidirectional_sync_required"},
-                description_placeholders={
-                    "message": "Selection criteria are only available when bidirectional synchronization is enabled. Please go back and enable bidirectional synchronization first."
-                },
-            )
-        
-        current_settings = self.options.get(CONF_SELECTION_CRITERIA, {})
-
-        if user_input is not None:
-            try:
-                selection_criteria = {
-                    CONF_PREFER_GENERIC_PRODUCTS: user_input.get(
-                        CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
-                    ),
-                    CONF_AUTO_SELECT_FIRST: user_input.get(
-                        CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
-                    ),
-                }
-
-                selection_criteria = SELECTION_CRITERIA_SCHEMA(selection_criteria)
-            except vol.Invalid:
-                self._errors["base"] = "invalid_selection_criteria"
-
-            if not self._errors:
-                updated_data = dict(self.options)
-                updated_data[CONF_SELECTION_CRITERIA] = selection_criteria
-
-                old_settings = self.options.get(CONF_SELECTION_CRITERIA, {})
-                if old_settings != selection_criteria:
-                    await _create_restart_repair_issue(
-                        self.hass, "restart_required_settings"
-                    )
-
-                return self.async_create_entry(title="", data=updated_data)
-
-        return self.async_show_form(
-            step_id="selection_criteria",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_PREFER_GENERIC_PRODUCTS,
-                        default=current_settings.get(
-                            CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_AUTO_SELECT_FIRST,
-                        default=current_settings.get(
-                            CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
-                        ),
-                    ): bool,
-                }
-            ),
-            errors=self._errors,
-            description_placeholders={
-                "description": "Configure selection criteria to handle multiple match cases when multiple products are found matching your input."
-            },
-        )
-
     async def async_step_advanced(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle advanced settings with disclaimer."""
         self._errors = {}
-        current_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
+        current_analysis_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
+        current_selection_criteria = self.options.get(CONF_SELECTION_CRITERIA, {})
 
         if user_input is not None:
             try:
+                # Extract analysis settings
                 analysis_settings = {
                     CONF_CONSUMPTION_WEIGHT: user_input.get(
                         CONF_CONSUMPTION_WEIGHT, DEFAULT_CONSUMPTION_WEIGHT
@@ -319,7 +232,22 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     ),
                 }
 
+                # Extract selection criteria
+                selection_criteria = {
+                    CONF_PREFER_GENERIC_PRODUCTS: user_input.get(
+                        CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
+                    ),
+                    CONF_AUTO_SELECT_FIRST: user_input.get(
+                        CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
+                    ),
+                    CONF_SUGGEST_CREATE_ONLY_NO_MATCH: user_input.get(
+                        CONF_SUGGEST_CREATE_ONLY_NO_MATCH, DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH
+                    ),
+                }
+
                 analysis_settings = ANALYSIS_SCHEMA(analysis_settings)
+                selection_criteria = SELECTION_CRITERIA_SCHEMA(selection_criteria)
+                
                 total_weight = (
                     analysis_settings[CONF_CONSUMPTION_WEIGHT]
                     + analysis_settings[CONF_FREQUENCY_WEIGHT]
@@ -333,9 +261,12 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             if not self._errors:
                 updated_data = dict(self.options)
                 updated_data[CONF_ANALYSIS_SETTINGS] = analysis_settings
+                updated_data[CONF_SELECTION_CRITERIA] = selection_criteria
 
-                old_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
-                if old_settings != analysis_settings:
+                old_analysis_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
+                old_selection_criteria = self.options.get(CONF_SELECTION_CRITERIA, {})
+                
+                if old_analysis_settings != analysis_settings or old_selection_criteria != selection_criteria:
                     await _create_restart_repair_issue(
                         self.hass, "restart_required_analysis"
                     )
@@ -346,35 +277,56 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             step_id="advanced",
             data_schema=vol.Schema(
                 {
+                    # Analysis Settings
                     vol.Required(
                         CONF_SCORE_THRESHOLD,
-                        default=current_settings.get(
+                        default=current_analysis_settings.get(
                             CONF_SCORE_THRESHOLD, DEFAULT_SCORE_THRESHOLD
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
                     vol.Required(
                         CONF_CONSUMPTION_WEIGHT,
-                        default=current_settings.get(
+                        default=current_analysis_settings.get(
                             CONF_CONSUMPTION_WEIGHT, DEFAULT_CONSUMPTION_WEIGHT
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
                     vol.Required(
                         CONF_FREQUENCY_WEIGHT,
-                        default=current_settings.get(
+                        default=current_analysis_settings.get(
                             CONF_FREQUENCY_WEIGHT, DEFAULT_FREQUENCY_WEIGHT
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
                     vol.Required(
                         CONF_SEASONAL_WEIGHT,
-                        default=current_settings.get(
+                        default=current_analysis_settings.get(
                             CONF_SEASONAL_WEIGHT, DEFAULT_SEASONAL_WEIGHT
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+                    
+                    # Selection Criteria
+                    vol.Optional(
+                        CONF_PREFER_GENERIC_PRODUCTS,
+                        default=current_selection_criteria.get(
+                            CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_AUTO_SELECT_FIRST,
+                        default=current_selection_criteria.get(
+                            CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
+                        default=current_selection_criteria.get(
+                            CONF_SUGGEST_CREATE_ONLY_NO_MATCH, DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH
+                        ),
+                    ): bool,
                 }
             ),
             errors=self._errors,
             description_placeholders={
-                "warning": "⚠️ These settings control how shopping suggestions are calculated. Incorrect values may completely break the feature. We recommend leaving defaults unchanged unless you fully understand the algorithm. All weights must sum to 1.0."
+                "warning": "⚠️ Analysis settings control how shopping suggestions are calculated. Selection criteria work only with bidirectional sync enabled. All weights must sum to 1.0."
             },
         )
 

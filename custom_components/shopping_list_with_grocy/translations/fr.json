@@ -30,26 +30,20 @@
                     "disable_timeout": "Désactiver le timeout sur les appels réseau (⚠️ À vos risques et périls, peut causer une instabilité)",
                     "image_download_size": "Taille des images de produits téléchargées? (Sélectionnez 0 pour désactiver les images)",
                     "show_advanced": "⚙️ Afficher les paramètres avancés de l'algorithme (⚠️ Peut casser la fonctionnalité si modifié incorrectement)",
-                    "enable_bidirectional_sync": "Utiliser la synchronisation bidirectionnelle",
-                    "show_selection_criteria": "Configurer les critères de sélection (gestion des correspondances multiples)"
-                }
-            },
-            "selection_criteria": {
-                "title": "Critères de sélection - Gestion des correspondances multiples",
-                "description": "Configurez les critères pour gérer les cas où plusieurs produits correspondent à votre saisie lors de la synchronisation bidirectionnelle. Ces paramètres aident à déterminer quel produit sélectionner automatiquement.",
-                "data": {
-                    "prefer_generic_products": "Préférer les produits génériques (sans parent)",
-                    "auto_select_first": "Sélectionner automatiquement le premier résultat"
+                    "enable_bidirectional_sync": "Utiliser la synchronisation bidirectionnelle"
                 }
             },
             "advanced": {
-                "title": "⚠️ Paramètres Avancés de l'Algorithme",
-                "description": "⚠️ **Procédez avec prudence** ⚠️\n\nCes paramètres contrôlent comment les suggestions d'achats sont calculées. Modifier ces valeurs incorrectement peut casser la fonctionnalité de suggestion.\n\nNous recommandons de laisser ces valeurs à leurs paramètres par défaut sauf si vous comprenez parfaitement comment l'algorithme fonctionne.\n\nLes poids de l'algorithme doivent totaliser exactement 1.0 ou la fonctionnalité ne marchera pas.",
+                "title": "Paramètres Avancés",
+                "description": "Paramètres avancés de l'algorithme et critères de sélection.\n\n⚠️ ATTENTION : Les paramètres d'algorithme contrôlent comment les suggestions d'achats sont calculées. Les modifier incorrectement peut casser la fonctionnalité. Les poids de l'algorithme doivent totaliser exactement 1.0.\n\nLes critères de sélection fonctionnent uniquement avec la synchronisation bidirectionnelle activée et aident à déterminer quel produit sélectionner quand plusieurs correspondances sont trouvées.",
                 "data": {
                     "score_threshold": "Score de confiance minimum pour les suggestions (0.0-1.0)",
                     "consumption_weight": "Importance à accorder aux habitudes d'usage (0.0-1.0)", 
                     "frequency_weight": "Importance à accorder à l'historique d'achat (0.0-1.0)",
-                    "seasonal_weight": "Importance à accorder aux tendances saisonnières (0.0-1.0)"
+                    "seasonal_weight": "Importance à accorder aux tendances saisonnières (0.0-1.0)",
+                    "prefer_generic_products": "Préférer les produits génériques (sans parent)",
+                    "auto_select_first": "Sélectionner automatiquement le premier résultat",
+                    "suggest_create_only_no_match": "Suggérer la création de nouveaux produits seulement quand aucune correspondance n'est trouvée (masquer l'option de création quand des produits correspondent)"
                 }
             }
         },

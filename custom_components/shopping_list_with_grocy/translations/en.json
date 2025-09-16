@@ -30,26 +30,20 @@
                     "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
                     "show_advanced": "Show Advanced Algorithm Settings (WARNING: May break functionality if modified incorrectly)",
-                    "enable_bidirectional_sync": "Use bidirectional sync",
-                    "show_selection_criteria": "Configure Selection Criteria (Multiple Match Handling)"
-                }
-            },
-            "selection_criteria": {
-                "title": "Selection Criteria - Multiple Match Handling",
-                "description": "Configure the criteria for handling cases when multiple products match your input during bidirectional sync. These settings help determine which product to select automatically.",
-                "data": {
-                    "prefer_generic_products": "Prefer generic products (without parent)",
-                    "auto_select_first": "Automatically select the first result"
+                    "enable_bidirectional_sync": "Use bidirectional sync"
                 }
             },
             "advanced": {
-                "title": "WARNING: Advanced Algorithm Settings",
-                "description": "WARNING: Proceed with caution\n\nThese settings control how the shopping suggestions are calculated. Modifying these values incorrectly may break the suggestion feature.\n\nWe recommend leaving these at their default values unless you fully understand how the algorithm works.\n\nThe algorithm weights must sum to exactly 1.0 or the feature will not work.",
+                "title": "Advanced Settings",
+                "description": "Advanced algorithm settings and selection criteria.\n\nWARNING: Algorithm settings control how shopping suggestions are calculated. Modifying these incorrectly may break the suggestion feature. Algorithm weights must sum to exactly 1.0.\n\nSelection criteria work only with bidirectional sync enabled and help determine which product to select when multiple matches are found.",
                 "data": {
                     "score_threshold": "Minimum confidence score for suggestions (0.0-1.0)",
                     "consumption_weight": "How much to consider usage patterns (0.0-1.0)", 
                     "frequency_weight": "How much to consider purchase history (0.0-1.0)",
-                    "seasonal_weight": "How much to consider seasonal trends (0.0-1.0)"
+                    "seasonal_weight": "How much to consider seasonal trends (0.0-1.0)",
+                    "prefer_generic_products": "Prefer generic products (without parent)",
+                    "auto_select_first": "Automatically select the first result",
+                    "suggest_create_only_no_match": "Only suggest creating new products when no matches are found (hide create option when products match)"
                 }
             }
         },

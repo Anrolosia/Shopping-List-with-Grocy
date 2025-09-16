@@ -1085,19 +1085,34 @@ class ShoppingListWithGrocyApi:
                             "error": "Failed to add product to shopping list",
                         }
                 else:
-
+                    # Check if we should suggest create option when matches exist
+                    suggest_create_only_no_match = selection_criteria.get("suggest_create_only_no_match", False) if selection_criteria else False
+                    
                     matches_with_create_option = matches.copy()
-                    create_option_text = await self.get_frontend_translation(
-                        "create_new_product", product_name=product_name
-                    )
-                    matches_with_create_option.append(
-                        {
-                            "id": "create_new",
-                            "name": create_option_text,
-                            "similarity": 0.0,
-                            "is_create_option": True,
-                        }
-                    )
+                    
+                    # Only add create option if suggest_create_only_no_match is False
+                    # or if there are no matches (which shouldn't happen in this branch, but safety first)
+                    if not suggest_create_only_no_match:
+                        create_option_text = await self.get_frontend_translation(
+                            "create_new_product", product_name=product_name
+                        )
+                        matches_with_create_option.append(
+                            {
+                                "id": "create_new",
+                                "name": create_option_text,
+                                "similarity": 0.0,
+                                "is_create_option": True,
+                            }
+                        )
+                        LOGGER.debug(
+                            "Added create option to %d matches (suggest_create_only_no_match=False)",
+                            len(matches),
+                        )
+                    else:
+                        LOGGER.debug(
+                            "Skipped create option for %d matches (suggest_create_only_no_match=True)",
+                            len(matches),
+                        )
 
                     return {
                         "success": False,

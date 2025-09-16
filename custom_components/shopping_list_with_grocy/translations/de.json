@@ -30,26 +30,20 @@
           "disable_timeout": "Netzwerk-Timeout deaktivieren (⚠️ Auf eigene Gefahr, kann Instabilität verursachen)",
           "image_download_size": "Größe der heruntergeladenen Produktbilder? (Wählen Sie 0, um Bilder zu deaktivieren)",
           "show_advanced": "⚙️ Erweiterte Algorithmus-Einstellungen anzeigen (⚠️ Kann Funktionalität beeinträchtigen, wenn falsch geändert)",
-          "enable_bidirectional_sync": "Bidirektionale Synchronisierung verwenden",
-          "show_selection_criteria": "Auswahlkriterien konfigurieren (Behandlung mehrfacher Übereinstimmungen)"
-        }
-      },
-      "selection_criteria": {
-        "title": "Auswahlkriterien - Behandlung mehrfacher Übereinstimmungen",
-        "description": "Konfigurieren Sie die Kriterien für den Umgang mit Fällen, in denen mehrere Produkte Ihrer Eingabe während der bidirektionalen Synchronisierung entsprechen. Diese Einstellungen helfen zu bestimmen, welches Produkt automatisch ausgewählt werden soll.",
-        "data": {
-          "prefer_generic_products": "Generische Produkte bevorzugen (ohne Eltern)",
-          "auto_select_first": "Erstes Ergebnis automatisch auswählen"
+          "enable_bidirectional_sync": "Bidirektionale Synchronisierung verwenden"
         }
       },
       "advanced": {
-        "title": "⚠️ Erweiterte Algorithmus-Einstellungen",
-        "description": "⚠️ **Vorsichtig vorgehen** ⚠️\n\nDiese Einstellungen steuern, wie Einkaufsvorschläge berechnet werden. Falsche Änderungen können die Vorschlagsfunktion beeinträchtigen.\n\nWir empfehlen, diese Werte bei den Standardeinstellungen zu belassen, es sei denn, Sie verstehen vollständig, wie der Algorithmus funktioniert.\n\nDie Algorithmus-Gewichtungen müssen genau 1.0 ergeben, sonst funktioniert die Funktion nicht.",
+        "title": "Erweiterte Einstellungen",
+        "description": "Erweiterte Algorithmus-Einstellungen und Auswahlkriterien.\n\n⚠️ WARNUNG: Algorithmus-Einstellungen steuern, wie Einkaufsvorschläge berechnet werden. Falsche Änderungen können die Funktion beeinträchtigen. Algorithmus-Gewichtungen müssen genau 1.0 ergeben.\n\nAuswahlkriterien funktionieren nur bei aktivierter bidirektionaler Synchronisation und helfen zu bestimmen, welches Produkt ausgewählt wird, wenn mehrere Übereinstimmungen gefunden werden.",
         "data": {
           "score_threshold": "Mindest-Vertrauenswert für Vorschläge (0.0-1.0)",
           "consumption_weight": "Wichtigkeit der Verbrauchsgewohnheiten (0.0-1.0)",
           "frequency_weight": "Wichtigkeit der Kaufhistorie (0.0-1.0)",
-          "seasonal_weight": "Wichtigkeit saisonaler Trends (0.0-1.0)"
+          "seasonal_weight": "Wichtigkeit saisonaler Trends (0.0-1.0)",
+          "prefer_generic_products": "Generische Produkte bevorzugen (ohne Elternprodukt)",
+          "auto_select_first": "Erstes Ergebnis automatisch auswählen",
+          "suggest_create_only_no_match": "Neue Produkte nur vorschlagen, wenn keine Übereinstimmungen gefunden werden (Erstellungsoption ausblenden, wenn Produkte übereinstimmen)"
         }
       }
     },

@@ -23,8 +23,10 @@ from .const import (
     CONF_SELECTION_CRITERIA,
     CONF_PREFER_GENERIC_PRODUCTS,
     CONF_AUTO_SELECT_FIRST,
+    CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
     DEFAULT_PREFER_GENERIC_PRODUCTS,
     DEFAULT_AUTO_SELECT_FIRST,
+    DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
 )
 
 
@@ -64,6 +66,9 @@ SELECTION_CRITERIA_SCHEMA = vol.Schema(
             vol.Coerce(bool)
         ),
         Optional(CONF_AUTO_SELECT_FIRST, default=DEFAULT_AUTO_SELECT_FIRST): vol.All(
+            vol.Coerce(bool)
+        ),
+        Optional(CONF_SUGGEST_CREATE_ONLY_NO_MATCH, default=DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH): vol.All(
             vol.Coerce(bool)
         ),
     }
