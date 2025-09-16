@@ -7,7 +7,8 @@
                     "verify_ssl": "Verifique el certificado SSL",
                     "api_key": "Grocy - Clave API",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
-                    "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)"
+                    "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)",
+                    "enable_product_sensors": "Habilitar sensores individuales de productos"
                 }
             }
         },
@@ -29,6 +30,7 @@
                     "api_key": "Grocy - Clave API",
                     "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
+                    "enable_product_sensors": "Habilitar sensores individuales de productos",
                     "show_advanced": "⚙️ Mostrar Configuración Avanzada del Algoritmo (⚠️ Puede romper la funcionalidad si se modifica incorrectamente)",
                     "enable_bidirectional_sync": "Usar la sincronización bidireccional"
                 }

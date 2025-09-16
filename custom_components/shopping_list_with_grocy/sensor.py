@@ -14,7 +14,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ENTITY_VERSION
+from .const import DOMAIN, ENTITY_VERSION, CONF_ENABLE_PRODUCT_SENSORS
 
 LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=60)
@@ -257,21 +257,37 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     else:
         config_data = config_entry.options
 
+    # Check if product sensors are enabled (default to True for backward compatibility)
+    enable_product_sensors = config_data.get(CONF_ENABLE_PRODUCT_SENSORS, True)
+
     existing_entities = []
-    for state in hass.states.async_all():
-        if state.entity_id.startswith(
-            f"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_"
-        ):
-            product_id = state.entity_id.split("_")[-1]
-            existing_sensor = DynamicProductSensor(
-                coordinator,
-                {
-                    "product_id": product_id,
-                    "name": state.name,
-                    "qty_in_shopping_lists": state.state,
-                },
-            )
-            existing_entities.append(existing_sensor)
+    if enable_product_sensors:
+        for state in hass.states.async_all():
+            if state.entity_id.startswith(
+                f"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_"
+            ):
+                product_id = state.entity_id.split("_")[-1]
+                existing_sensor = DynamicProductSensor(
+                    coordinator,
+                    {
+                        "product_id": product_id,
+                        "name": state.name,
+                        "qty_in_shopping_lists": state.state,
+                    },
+                )
+                existing_entities.append(existing_sensor)
+    else:
+        # If product sensors are disabled, remove any existing product sensors
+        entity_registry = async_get(hass)
+        for state in hass.states.async_all():
+            if state.entity_id.startswith(
+                f"sensor.shopping_list_with_grocy_product_v{ENTITY_VERSION}_"
+            ):
+                # Remove from entity registry if registered
+                if entity_registry.async_is_registered(state.entity_id):
+                    entity_registry.async_remove(state.entity_id)
+                # Remove from state machine
+                hass.states.async_remove(state.entity_id)
 
     sensors = [
         GrocyShoppingListSensor(
@@ -299,6 +315,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     pattern = re.compile(r"list_\d+_.*")
 
     async def async_add_or_update_dynamic_sensor(product):
+        # Check if product sensors are enabled
+        if not enable_product_sensors:
+            return
+            
         product_id = str(product["product_id"])
         entity_id = f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
 
