@@ -372,18 +372,39 @@ class ShoppingListWithGrocyApi:
                     }
                     qty_in_shopping_lists += int(in_shop_list)
 
-            stock_qty = sum(
-                float(stock["amount"])
+            # Gather stock entries for this product once to derive quantities and dates
+            stock_entries = [
+                stock
                 for stock in data["stock"]
-                if str(stock["product_id"]) == str(product_id)
-            )
+                if str(stock.get("product_id")) == str(product_id)
+            ]
+
+            stock_qty = sum(float(s.get("amount", 0)) for s in stock_entries)
             opened_qty = sum(
-                float(stock["amount"]) * int(stock["open"])
-                for stock in data["stock"]
-                if str(stock["product_id"]) == str(product_id)
+                float(s.get("amount", 0)) * int(s.get("open", 0)) for s in stock_entries
             )
 
             unopened_qty = max(0, stock_qty - opened_qty)
+
+            # Aggregate dates from stock if available
+            best_before_dates = [
+                s.get("best_before_date")
+                for s in stock_entries
+                if s.get("best_before_date")
+            ]
+            opened_dates = [
+                s.get("opened_date") for s in stock_entries if s.get("opened_date")
+            ]
+            purchase_dates = [
+                # Grocy uses 'purchased_date'; expose as 'purchase_date'
+                s.get("purchased_date") or s.get("purchase_date")
+                for s in stock_entries
+                if s.get("purchased_date") or s.get("purchase_date")
+            ]
+
+            best_before_date = min(best_before_dates) if best_before_dates else None
+            opened_date = max(opened_dates) if opened_dates else None
+            purchase_date = max(purchase_dates) if purchase_dates else None
 
             prod_dict = {
                 "product_id": product_id,
@@ -400,6 +421,14 @@ class ShoppingListWithGrocyApi:
                 "userfields": userfields,
                 "list_count": len(shopping_lists),
             }
+
+            # Add dates only if present
+            if best_before_date:
+                prod_dict["best_before_date"] = best_before_date
+            if opened_date:
+                prod_dict["opened_date"] = opened_date
+            if purchase_date:
+                prod_dict["purchase_date"] = purchase_date
 
             for shop_list, details in shopping_lists.items():
                 prod_dict.update(
