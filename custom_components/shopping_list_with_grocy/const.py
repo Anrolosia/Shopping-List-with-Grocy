@@ -19,6 +19,16 @@ SERVICE_ATTR_SHOPPING_LIST_ID = "shopping_list_id"
 SERVICE_ATTR_NOTE = "note"
 SERVICE_ATTR_AMOUNT = "amount"
 
+# Selection Criteria Configuration Constants
+CONF_SELECTION_CRITERIA = "selection_criteria"
+CONF_PREFER_GENERIC_PRODUCTS = "prefer_generic_products"
+CONF_AUTO_SELECT_FIRST = "auto_select_first"
+CONF_SUGGEST_CREATE_ONLY_NO_MATCH = "suggest_create_only_no_match"
+
+DEFAULT_PREFER_GENERIC_PRODUCTS = False
+DEFAULT_AUTO_SELECT_FIRST = False
+DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH = False
+
 OTHER_FIELDS = {
     "qu_id_purchase",
     "qu_id_stock",

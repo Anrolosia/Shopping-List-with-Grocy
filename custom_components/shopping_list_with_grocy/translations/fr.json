@@ -34,20 +34,28 @@
                 }
             },
             "advanced": {
-                "title": "⚠️ Paramètres Avancés de l'Algorithme",
-                "description": "⚠️ **Procédez avec prudence** ⚠️\n\nCes paramètres contrôlent comment les suggestions d'achats sont calculées. Modifier ces valeurs incorrectement peut casser la fonctionnalité de suggestion.\n\nNous recommandons de laisser ces valeurs à leurs paramètres par défaut sauf si vous comprenez parfaitement comment l'algorithme fonctionne.\n\nLes poids de l'algorithme doivent totaliser exactement 1.0 ou la fonctionnalité ne marchera pas.",
+                "title": "Paramètres Avancés",
+                "description": "Paramètres avancés de l'algorithme et critères de sélection.\n\n⚠️ ATTENTION : Les paramètres d'algorithme contrôlent comment les suggestions d'achats sont calculées. Les modifier incorrectement peut casser la fonctionnalité. Les poids de l'algorithme doivent totaliser exactement 1.0.\n\nLes critères de sélection fonctionnent uniquement avec la synchronisation bidirectionnelle activée et aident à déterminer quel produit sélectionner quand plusieurs correspondances sont trouvées.",
                 "data": {
                     "score_threshold": "Score de confiance minimum pour les suggestions (0.0-1.0)",
                     "consumption_weight": "Importance à accorder aux habitudes d'usage (0.0-1.0)", 
                     "frequency_weight": "Importance à accorder à l'historique d'achat (0.0-1.0)",
-                    "seasonal_weight": "Importance à accorder aux tendances saisonnières (0.0-1.0)"
+                    "seasonal_weight": "Importance à accorder aux tendances saisonnières (0.0-1.0)",
+                    "prefer_generic_products": "Préférer les produits génériques (sans parent)",
+                    "auto_select_first": "Sélectionner automatiquement le premier résultat",
+                    "suggest_create_only_no_match": "Suggérer la création de nouveaux produits seulement quand aucune correspondance n'est trouvée (masquer l'option de création quand des produits correspondent)"
                 }
             }
         },
         "error": {
             "invalid_api_url": "L'URL de Grocy n'est pas valide, veuillez utiliser une URL valide (http:// ou https:// avec un nom de domaine ou une adresse IP)",
             "weight_sum_error": "⚠️ ERREUR : Les poids de l'algorithme doivent totaliser exactement 1.0 ! La somme actuelle est invalide. Veuillez ajuster les valeurs pour qu'elles totalisent 1.0.",
-            "invalid_analysis_settings": "Paramètres d'algorithme invalides fournis. Veuillez vérifier vos valeurs et réessayer."
+            "invalid_analysis_settings": "Paramètres d'algorithme invalides fournis. Veuillez vérifier vos valeurs et réessayer.",
+            "invalid_selection_criteria": "Critères de sélection invalides fournis. Veuillez vérifier vos valeurs et réessayer.",
+            "bidirectional_sync_required": "Les critères de sélection nécessitent que la synchronisation bidirectionnelle soit activée. Veuillez revenir en arrière et activer d'abord la synchronisation bidirectionnelle."
+        },
+        "abort": {
+            "bidirectional_sync_disabled": "Les critères de sélection ne sont disponibles que lorsque la synchronisation bidirectionnelle est activée."
         }
     },
     "services": {

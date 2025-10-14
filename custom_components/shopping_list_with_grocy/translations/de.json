@@ -34,20 +34,28 @@
         }
       },
       "advanced": {
-        "title": "⚠️ Erweiterte Algorithmus-Einstellungen",
-        "description": "⚠️ **Vorsichtig vorgehen** ⚠️\n\nDiese Einstellungen steuern, wie Einkaufsvorschläge berechnet werden. Falsche Änderungen können die Vorschlagsfunktion beeinträchtigen.\n\nWir empfehlen, diese Werte bei den Standardeinstellungen zu belassen, es sei denn, Sie verstehen vollständig, wie der Algorithmus funktioniert.\n\nDie Algorithmus-Gewichtungen müssen genau 1.0 ergeben, sonst funktioniert die Funktion nicht.",
+        "title": "Erweiterte Einstellungen",
+        "description": "Erweiterte Algorithmus-Einstellungen und Auswahlkriterien.\n\n⚠️ WARNUNG: Algorithmus-Einstellungen steuern, wie Einkaufsvorschläge berechnet werden. Falsche Änderungen können die Funktion beeinträchtigen. Algorithmus-Gewichtungen müssen genau 1.0 ergeben.\n\nAuswahlkriterien funktionieren nur bei aktivierter bidirektionaler Synchronisation und helfen zu bestimmen, welches Produkt ausgewählt wird, wenn mehrere Übereinstimmungen gefunden werden.",
         "data": {
           "score_threshold": "Mindest-Vertrauenswert für Vorschläge (0.0-1.0)",
           "consumption_weight": "Wichtigkeit der Verbrauchsgewohnheiten (0.0-1.0)",
           "frequency_weight": "Wichtigkeit der Kaufhistorie (0.0-1.0)",
-          "seasonal_weight": "Wichtigkeit saisonaler Trends (0.0-1.0)"
+          "seasonal_weight": "Wichtigkeit saisonaler Trends (0.0-1.0)",
+          "prefer_generic_products": "Generische Produkte bevorzugen (ohne Elternprodukt)",
+          "auto_select_first": "Erstes Ergebnis automatisch auswählen",
+          "suggest_create_only_no_match": "Neue Produkte nur vorschlagen, wenn keine Übereinstimmungen gefunden werden (Erstellungsoption ausblenden, wenn Produkte übereinstimmen)"
         }
       }
     },
     "error": {
       "invalid_api_url": "Die Grocy-URL ist ungültig, bitte verwenden Sie eine gültige URL (http:// oder https:// mit Domänenname oder IP-Adresse)",
       "weight_sum_error": "⚠️ FEHLER: Die Algorithmus-Gewichtungen müssen genau 1.0 ergeben! Die aktuelle Summe ist ungültig. Bitte passen Sie die Werte an, damit sie 1.0 ergeben.",
-      "invalid_analysis_settings": "Ungültige Algorithmus-Einstellungen bereitgestellt. Bitte überprüfen Sie Ihre Werte und versuchen Sie es erneut."
+      "invalid_analysis_settings": "Ungültige Algorithmus-Einstellungen bereitgestellt. Bitte überprüfen Sie Ihre Werte und versuchen Sie es erneut.",
+      "invalid_selection_criteria": "Ungültige Auswahlkriterien bereitgestellt. Bitte überprüfen Sie Ihre Werte und versuchen Sie es erneut.",
+      "bidirectional_sync_required": "Auswahlkriterien erfordern, dass die bidirektionale Synchronisierung aktiviert ist. Bitte gehen Sie zurück und aktivieren Sie zuerst die bidirektionale Synchronisierung."
+    },
+    "abort": {
+      "bidirectional_sync_disabled": "Auswahlkriterien sind nur verfügbar, wenn die bidirektionale Synchronisierung aktiviert ist."
     }
   },
   "services": {

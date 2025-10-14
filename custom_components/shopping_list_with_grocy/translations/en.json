@@ -34,20 +34,28 @@
                 }
             },
             "advanced": {
-                "title": "WARNING: Advanced Algorithm Settings",
-                "description": "WARNING: Proceed with caution\n\nThese settings control how the shopping suggestions are calculated. Modifying these values incorrectly may break the suggestion feature.\n\nWe recommend leaving these at their default values unless you fully understand how the algorithm works.\n\nThe algorithm weights must sum to exactly 1.0 or the feature will not work.",
+                "title": "Advanced Settings",
+                "description": "Advanced algorithm settings and selection criteria.\n\nWARNING: Algorithm settings control how shopping suggestions are calculated. Modifying these incorrectly may break the suggestion feature. Algorithm weights must sum to exactly 1.0.\n\nSelection criteria work only with bidirectional sync enabled and help determine which product to select when multiple matches are found.",
                 "data": {
                     "score_threshold": "Minimum confidence score for suggestions (0.0-1.0)",
                     "consumption_weight": "How much to consider usage patterns (0.0-1.0)", 
                     "frequency_weight": "How much to consider purchase history (0.0-1.0)",
-                    "seasonal_weight": "How much to consider seasonal trends (0.0-1.0)"
+                    "seasonal_weight": "How much to consider seasonal trends (0.0-1.0)",
+                    "prefer_generic_products": "Prefer generic products (without parent)",
+                    "auto_select_first": "Automatically select the first result",
+                    "suggest_create_only_no_match": "Only suggest creating new products when no matches are found (hide create option when products match)"
                 }
             }
         },
         "error": {
             "invalid_api_url": "Grocy's URL is invalid, please use valid URL (http:// or https:// with either domain name or ip address)",
             "weight_sum_error": "ERROR: The algorithm weights must sum to exactly 1.0! Current sum is invalid. Please adjust the values so they add up to 1.0.",
-            "invalid_analysis_settings": "Invalid algorithm settings provided. Please check your values and try again."
+            "invalid_analysis_settings": "Invalid algorithm settings provided. Please check your values and try again.",
+            "invalid_selection_criteria": "Invalid selection criteria provided. Please check your values and try again.",
+            "bidirectional_sync_required": "Selection criteria require bidirectional sync to be enabled. Please go back and enable bidirectional synchronization first."
+        },
+        "abort": {
+            "bidirectional_sync_disabled": "Selection criteria are only available when bidirectional sync is enabled."
         }
     },
     "services": {

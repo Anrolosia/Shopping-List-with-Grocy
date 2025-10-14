@@ -25,6 +25,7 @@ from .const import (
     SERVICE_REFRESH,
     SERVICE_REMOVE,
     SERVICE_SEARCH,
+    CONF_SELECTION_CRITERIA,
 )
 from .frontend_translations import (
     async_load_frontend_translations,
@@ -631,8 +632,13 @@ def async_setup_services(hass) -> None:
             api.bidirectional_sync_enabled = True
             api.bidirectional_sync_stopped = False
 
+            # Get selection criteria from configuration
+            config_entry = hass.config_entries.async_entries(DOMAIN)[0]
+            config = {**config_entry.data, **(config_entry.options or {})}
+            selection_criteria = config.get(CONF_SELECTION_CRITERIA, {})
+
             result = await api.handle_ha_todo_item_creation(
-                test_product_name, shopping_list_id
+                test_product_name, shopping_list_id, selection_criteria
             )
 
             api.bidirectional_sync_enabled = original_sync_enabled
@@ -1659,8 +1665,13 @@ def async_setup_services(hass) -> None:
             return
 
         try:
+            # Get selection criteria from configuration
+            config_entry = hass.config_entries.async_entries(DOMAIN)[0]
+            config = {**config_entry.data, **(config_entry.options or {})}
+            selection_criteria = config.get(CONF_SELECTION_CRITERIA, {})
+            
             result = await api.handle_ha_todo_item_creation(
-                product_name, shopping_list_id
+                product_name, shopping_list_id, selection_criteria
             )
 
             if result["success"]:

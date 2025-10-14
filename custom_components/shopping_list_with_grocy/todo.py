@@ -19,7 +19,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
-from .const import DOMAIN
+from .const import DOMAIN, CONF_SELECTION_CRITERIA
 from .coordinator import ShoppingListWithGrocyCoordinator
 from .frontend_translations import async_load_frontend_translations, get_todo_strings
 
@@ -183,8 +183,12 @@ class ShoppingListWithGrocyTodoListEntity(
         multiple_choice = False
 
         try:
+            # Get selection criteria from configuration
+            config = {**self.coordinator.entry.data, **(self.coordinator.entry.options or {})}
+            selection_criteria = config.get(CONF_SELECTION_CRITERIA, {})
+            
             result = await self.api.handle_ha_todo_item_creation(
-                item.summary, shopping_list_id=self._list_id
+                item.summary, shopping_list_id=self._list_id, selection_criteria=selection_criteria
             )
 
             if result["success"]:

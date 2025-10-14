@@ -34,20 +34,28 @@
                 }
             },
             "advanced": {
-                "title": "⚠️ Configuración Avanzada del Algoritmo",
-                "description": "⚠️ **Proceder con precaución** ⚠️\n\nEstos ajustes controlan cómo se calculan las sugerencias de compras. Modificar estos valores incorrectamente puede romper la función de sugerencias.\n\nRecomendamos dejar estos valores en su configuración predeterminada a menos que entienda completamente cómo funciona el algoritmo.\n\nLos pesos del algoritmo deben sumar exactamente 1.0 o la función no funcionará.",
+                "title": "Configuración Avanzada",
+                "description": "Configuración avanzada del algoritmo y criterios de selección.\n\n⚠️ ADVERTENCIA: La configuración del algoritmo controla cómo se calculan las sugerencias de compras. Modificar incorrectamente puede romper la funcionalidad. Los pesos del algoritmo deben sumar exactamente 1.0.\n\nLos criterios de selección funcionan solo con sincronización bidireccional habilitada y ayudan a determinar qué producto seleccionar cuando se encuentran múltiples coincidencias.",
                 "data": {
                     "score_threshold": "Puntuación mínima de confianza para sugerencias (0.0-1.0)",
                     "consumption_weight": "Cuánto considerar los patrones de uso (0.0-1.0)", 
                     "frequency_weight": "Cuánto considerar el historial de compras (0.0-1.0)",
-                    "seasonal_weight": "Cuánto considerar las tendencias estacionales (0.0-1.0)"
+                    "seasonal_weight": "Cuánto considerar las tendencias estacionales (0.0-1.0)",
+                    "prefer_generic_products": "Preferir productos genéricos (sin padre)",
+                    "auto_select_first": "Seleccionar automáticamente el primer resultado",
+                    "suggest_create_only_no_match": "Sugerir crear nuevos productos solo cuando no se encuentren coincidencias (ocultar opción de creación cuando los productos coinciden)"
                 }
             }
         },
         "error": {
             "invalid_api_url": "La URL de Grocy no es válida. Por favor, inténtalo de nuevo con una URL válida (http:// o https:// con el nombre del dominio o dirección IP)",
             "weight_sum_error": "⚠️ ERROR: ¡Los pesos del algoritmo deben sumar exactamente 1.0! La suma actual es inválida. Por favor ajuste los valores para que sumen 1.0.",
-            "invalid_analysis_settings": "Configuración de algoritmo inválida proporcionada. Por favor verifique sus valores e intente de nuevo."
+            "invalid_analysis_settings": "Configuración de algoritmo inválida proporcionada. Por favor verifique sus valores e intente de nuevo.",
+            "invalid_selection_criteria": "Criterios de selección inválidos proporcionados. Por favor verifique sus valores e intente nuevamente.",
+            "bidirectional_sync_required": "Los criterios de selección requieren que la sincronización bidireccional esté habilitada. Por favor regrese y habilite primero la sincronización bidireccional."
+        },
+        "abort": {
+            "bidirectional_sync_disabled": "Los criterios de selección solo están disponibles cuando la sincronización bidireccional está habilitada."
         }
     },
     "services": {
