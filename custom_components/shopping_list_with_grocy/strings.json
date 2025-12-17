@@ -6,7 +6,8 @@
                     "api_url": "Grocy - URL",
                     "api_key": "Grocy - API Key",
                     "create_global_sensor": "Add all products in a sensor attribute?",
-                    "image_download_size": "0"
+                    "image_download_size": "0",
+                    "enable_product_sensors": "Enable individual product sensors"
                 }
             }
         },
@@ -29,6 +30,7 @@
                     "verify_ssl": "Verify SSL certificate",
                     "disable_timeout": "Disable timeout",
                     "image_download_size": "Product image size (0 to disable images)",
+                    "enable_product_sensors": "Enable individual product sensors",
                     "use_stock_management": "Use stock levels for suggestions",
                     "stock_weight": "Stock level importance (0-1)",
                     "consumption_weight": "Consumption rate importance (0-1)",

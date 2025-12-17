@@ -7,7 +7,8 @@
                     "verify_ssl": "Verify SSL certificate",
                     "api_key": "Grocy - API Key",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
-                    "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)"
+                    "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)",
+                    "enable_product_sensors": "Enable individual product sensors"
                 }
             }
         },
@@ -29,6 +30,7 @@
                     "api_key": "Grocy - API Key",
                     "disable_timeout": "Disable timeout on network calls (WARNING: Use at your own risk, may cause instability)",
                     "image_download_size": "Downloaded product image size? (Select 0 to disable images)",
+                    "enable_product_sensors": "Enable individual product sensors",
                     "show_advanced": "Show Advanced Algorithm Settings (WARNING: May break functionality if modified incorrectly)",
                     "enable_bidirectional_sync": "Use bidirectional sync"
                 }
