@@ -121,47 +121,52 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         pass
 
     try:
-        import hashlib
-        import shutil
-        from pathlib import Path
+        def _update_blueprints():
+            import hashlib
+            import shutil
+            from pathlib import Path
 
-        def file_sha256(path):
-            return (
-                hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
-            )
-
-        blueprint_names = [
-            "grocy_smart_voice_assistant.yaml",
-        ]
-
-        dest_dir = Path(hass.config.path(f"blueprints/automation/{DOMAIN}"))
-        dest_dir.mkdir(parents=True, exist_ok=True)
-
-        any_blueprint_updated = False
-
-        for blueprint_name in blueprint_names:
-            src = Path(__file__).parent / "blueprints" / blueprint_name
-            dest = dest_dir / blueprint_name
-
-            if not dest.exists() or file_sha256(src) != file_sha256(dest):
-                shutil.copy(src, dest)
-                LOGGER.info(
-                    "📄 Blueprint '%s' copied or updated to '%s'", blueprint_name, dest
-                )
-                any_blueprint_updated = True
-            else:
-                LOGGER.debug(
-                    "Blueprint '%s' already present and up to date", blueprint_name
+            def file_sha256(path):
+                return (
+                    hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
                 )
 
-        if dest_dir.exists():
-            for existing_file in dest_dir.glob("*.yaml"):
-                if existing_file.name not in blueprint_names:
+            blueprint_names = [
+                "grocy_smart_voice_assistant.yaml",
+            ]
+
+            dest_dir = Path(hass.config.path(f"blueprints/automation/{DOMAIN}"))
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            updated = False
+
+            for blueprint_name in blueprint_names:
+                src = Path(__file__).parent / "blueprints" / blueprint_name
+                dest = dest_dir / blueprint_name
+
+                if not dest.exists() or file_sha256(src) != file_sha256(dest):
+                    shutil.copy(src, dest)
                     LOGGER.info(
-                        "🗑️ Removing obsolete blueprint: '%s'", existing_file.name
+                        "📄 Blueprint '%s' copied or updated to '%s'", blueprint_name, dest
                     )
-                    existing_file.unlink()
-                    any_blueprint_updated = True
+                    updated = True
+                else:
+                    LOGGER.debug(
+                        "Blueprint '%s' already present and up to date", blueprint_name
+                    )
+
+            if dest_dir.exists():
+                for existing_file in dest_dir.glob("*.yaml"):
+                    if existing_file.name not in blueprint_names:
+                        LOGGER.info(
+                            "🗑️ Removing obsolete blueprint: '%s'", existing_file.name
+                        )
+                        existing_file.unlink()
+                        updated = True
+
+            return updated
+
+        any_blueprint_updated = await hass.async_add_executor_job(_update_blueprints)
 
         if any_blueprint_updated:
             try:
