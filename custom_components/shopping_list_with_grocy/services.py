@@ -1647,7 +1647,13 @@ def async_setup_services(hass) -> None:
         """Add a product via voice with proper feedback for multiple choices."""
         product_name = service_call.data.get("product_name", "")
         shopping_list_id = service_call.data.get("shopping_list_id", 1)
-        silent = service_call.data.get("silent", False)
+
+        entries = hass.config_entries.async_entries(DOMAIN)
+        disable_notifications = False
+        if entries:
+            disable_notifications = entries[0].options.get("disable_notifications", False)
+
+        silent = service_call.data.get("silent", disable_notifications)
 
         if not product_name:
             return

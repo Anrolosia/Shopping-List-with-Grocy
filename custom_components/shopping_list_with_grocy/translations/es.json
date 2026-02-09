@@ -30,7 +30,8 @@
                     "disable_timeout": "Desactivar el tiempo de espera en llamadas de red (⚠️ Úselo bajo su propio riesgo, puede causar inestabilidad)",
                     "image_download_size": "¿Tamaño de las imágenes descargadas? (Seleccione 0 para deshabilitar las imágenes)",
                     "show_advanced": "⚙️ Mostrar Configuración Avanzada del Algoritmo (⚠️ Puede romper la funcionalidad si se modifica incorrectamente)",
-                    "enable_bidirectional_sync": "Usar la sincronización bidireccional"
+                    "enable_bidirectional_sync": "Usar la sincronización bidireccional",
+                    "disable_notifications": "Desactivar notificaciones (para asistente de voz)"
                 }
             },
             "advanced": {
