@@ -48,7 +48,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
         self.options = dict(config_entry.options or config_entry.data)
 
         if CONF_ANALYSIS_SETTINGS not in self.options:
