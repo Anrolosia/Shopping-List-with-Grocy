@@ -1651,7 +1651,9 @@ def async_setup_services(hass) -> None:
         entries = hass.config_entries.async_entries(DOMAIN)
         disable_notifications = False
         if entries:
-            disable_notifications = entries[0].options.get("disable_notifications", False)
+            disable_notifications = entries[0].options.get(
+                "disable_notifications", False
+            )
 
         silent = service_call.data.get("silent", disable_notifications)
 

@@ -121,6 +121,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         pass
 
     try:
+
         def _update_blueprints():
             import hashlib
             import shutil
@@ -128,7 +129,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
             def file_sha256(path):
                 return (
-                    hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+                    hashlib.sha256(path.read_bytes()).hexdigest()
+                    if path.exists()
+                    else ""
                 )
 
             blueprint_names = [
@@ -147,7 +150,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 if not dest.exists() or file_sha256(src) != file_sha256(dest):
                     shutil.copy(src, dest)
                     LOGGER.info(
-                        "📄 Blueprint '%s' copied or updated to '%s'", blueprint_name, dest
+                        "📄 Blueprint '%s' copied or updated to '%s'",
+                        blueprint_name,
+                        dest,
                     )
                     updated = True
                 else:
