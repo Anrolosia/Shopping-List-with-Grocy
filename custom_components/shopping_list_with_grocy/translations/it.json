@@ -1,0 +1,132 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "data": {
+                    "api_url": "Grocy - URL",
+                    "verify_ssl": "Verifica certificato SSL",
+                    "api_key": "Grocy - Chiave API",
+                    "image_download_size": "Dimensione immagini prodotto scaricate? (Seleziona 0 per disabilitare le immagini)",
+                    "disable_timeout": "Disabilita timeout nelle chiamate di rete (ATTENZIONE: Usa a tuo rischio, potrebbe causare instabilità)"
+                }
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "È consentita solo una singola istanza."
+        },
+        "error": {
+            "invalid_api_url": "L'URL di Grocy non è valido, utilizza un URL valido (http:// o https:// con nome dominio o indirizzo IP)"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Shopping List with Grocy - Configurazione",
+                "description": "Configura le impostazioni di connessione a Grocy.\n\nINFO: I suggerimenti di acquisto funzionano ottimamente con le impostazioni predefinite. Accedi alle impostazioni avanzate solo se hai bisogno di ottimizzare l'algoritmo.",
+                "data": {
+                    "api_url": "Grocy - URL",
+                    "verify_ssl": "Verifica certificato SSL",
+                    "api_key": "Grocy - Chiave API",
+                    "disable_timeout": "Disabilita timeout nelle chiamate di rete (ATTENZIONE: Usa a tuo rischio, potrebbe causare instabilità)",
+                    "image_download_size": "Dimensione immagini prodotto scaricate? (Seleziona 0 per disabilitare le immagini)",
+                    "show_advanced": "Mostra Impostazioni Algoritmo Avanzate (ATTENZIONE: Può compromettere la funzionalità se modificate incorrettamente)",
+                    "enable_bidirectional_sync": "Usa sincronizzazione bidirezionale"
+                }
+            },
+            "advanced": {
+                "title": "ATTENZIONE: Impostazioni Algoritmo Avanzate",
+                "description": "ATTENZIONE: Procedi con cautela\n\nQueste impostazioni controllano come vengono calcolati i suggerimenti di acquisto. Modificare questi valori incorrettamente potrebbe compromettere la funzione di suggerimento.\n\nRaccomandiamo di lasciare questi valori predefiniti a meno che tu non comprenda completamente come funziona l'algoritmo.\n\nI pesi dell'algoritmo devono sommare esattamente a 1.0 altrimenti la funzione non funzionerà.",
+                "data": {
+                    "score_threshold": "Punteggio minimo di confidenza per i suggerimenti (0.0-1.0)",
+                    "consumption_weight": "Quanto considerare i modelli di utilizzo (0.0-1.0)", 
+                    "frequency_weight": "Quanto considerare la cronologia degli acquisti (0.0-1.0)",
+                    "seasonal_weight": "Quanto considerare le tendenze stagionali (0.0-1.0)"
+                }
+            }
+        },
+        "error": {
+            "invalid_api_url": "L'URL di Grocy non è valido, utilizza un URL valido (http:// o https:// con nome dominio o indirizzo IP)",
+            "weight_sum_error": "ERRORE: I pesi dell'algoritmo devono sommare esattamente a 1.0! La somma attuale non è valida. Regola i valori in modo che si sommino a 1.0.",
+            "invalid_analysis_settings": "Impostazioni algoritmo non valide fornite. Controlla i tuoi valori e riprova."
+        }
+    },
+    "services": {
+        "suggest_grocery_list": {
+            "name": "Suggerisci lista della spesa",
+            "description": "Genera suggerimenti per la tua lista della spesa.",
+            "fields": {
+                "disable_notification": {
+                    "name": "Disabilita notifiche",
+                    "description": "Disabilita l'invio di notifiche per questa azione"
+                }
+            }
+        },
+        "reset_suggestions": {
+            "name": "Reimposta suggerimenti spesa",
+            "description": "Cancella i suggerimenti di spesa attuali e reimposta allo stato di analisi."
+        },
+        "refresh_products": {
+            "name": "Aggiorna prodotti",
+            "description": "Aggiorna i prodotti da Grocy."
+        },
+        "add_product": {
+            "name": "Aggiungi prodotto",
+            "description": "Aggiungi prodotto alla tua lista della spesa Grocy.",
+            "fields": {
+                "product_id": {
+                    "name": "ID Prodotto",
+                    "description": "Rappresenta l'ID del prodotto che vorresti aggiungere."
+                },
+                "quantity": {
+                    "name": "Quantità",
+                    "description": "La quantità del prodotto da aggiungere."
+                },
+                "note": {
+                    "name": "Nota",
+                    "description": "Nota da aggiungere con il tuo prodotto."
+                },
+                "disable_notification": {
+                    "name": "Disabilita notifiche",
+                    "description": "Disabilita l'invio di notifiche per questa azione"
+                }
+            }
+        },
+        "remove_product": {
+            "name": "Rimuovi prodotto",
+            "description": "Rimuovi prodotto dalla tua lista della spesa Grocy.",
+            "fields": {
+                "product_id": {
+                    "name": "ID Prodotto",
+                    "description": "Rappresenta l'ID del prodotto che vorresti rimuovere."
+                }
+            }
+        },
+        "update_note": {
+            "name": "Aggiorna nota",
+            "description": "Aggiorna la nota per un prodotto nella tua lista della spesa Grocy.",
+            "fields": {
+                "product_id": {
+                    "name": "ID Prodotto",
+                    "description": "Rappresenta l'ID del prodotto che vorresti modificare."
+                },
+                "note": {
+                    "name": "Nota",
+                    "description": "Nota da aggiornare per il tuo prodotto."
+                }
+            }
+        }
+    },
+    "issues": {
+        "restart_required": {
+            "title": "Riavvio Richiesto - Shopping List with Grocy",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Riavvio Richiesto",
+                        "description": "L'integrazione {name} richiede un riavvio per completare la configurazione."
+                    }
+                }
+            }
+        }
+    }
+}

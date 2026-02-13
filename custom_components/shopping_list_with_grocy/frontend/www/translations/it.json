@@ -1,0 +1,93 @@
+{
+    "shopping_list_with_grocy": {
+        "ui": {
+            "panel": {
+                "title": "Suggerimenti Spesa",
+                "analysis_progress": "Analisi in corso...",
+                "no_analysis": "Nessun suggerimento disponibile al momento. Clicca il pulsante aggiorna per analizzare le tue necessità di spesa.",
+                "no_matches": "Nessun prodotto corrisponde ai criteri di analisi attuali",
+                "refresh": "Aggiorna Suggerimenti",
+                "add_all": "Aggiungi Selezionati",
+                "add_all_count": "Aggiungi Selezionati ({count})",
+                "quantity": {
+                    "increase": "Aumenta quantità",
+                    "decrease": "Diminuisci quantità",
+                    "select": "Seleziona quantità",
+                    "add": "Aggiungi alla lista della spesa"
+                },
+                "stats": {
+                    "score": "Punteggio: {score}",
+                    "confidence": "Confidenza: {confidence}",
+                    "stock": "Scorte: {current}/{min}"
+                }
+            }
+        },
+        "notifications": {
+            "restart_required": {
+                "setup": {
+                    "title": "Riavvio Richiesto - Shopping List with Grocy",
+                    "message": "Riavvia Home Assistant affinché l'integrazione Shopping List with Grocy funzioni correttamente.\n\nPuoi riavviare da Impostazioni > Sistema > Riavvia o usando Strumenti Sviluppatore > YAML."
+                },
+                "settings": {
+                    "title": "Riavvio Richiesto - Shopping List with Grocy",
+                    "message": "Riavvia Home Assistant affinché le modifiche API abbiano effetto.\n\nPuoi riavviare da Impostazioni > Sistema > Riavvia o usando Strumenti Sviluppatore > YAML."
+                },
+                "analysis": {
+                    "title": "Riavvio Richiesto - Shopping List with Grocy",
+                    "message": "Riavvia Home Assistant per applicare la nuova configurazione di analisi.\n\nPuoi riavviare da Impostazioni > Sistema > Riavvia o usando Strumenti Sviluppatore > YAML."
+                }
+            },
+            "suggestions": {
+                "title": "Suggerimenti Spesa Grocy",
+                "card_hint": "Nuovi suggerimenti di spesa sono disponibili! Controlla nel pannello [Suggerimenti Spesa]({url})."
+            },
+            "choice_success": {
+                "title": "✅ Prodotto Selezionato",
+                "message": "Scelta {choice_number}: {product_name} aggiunto alla tua lista della spesa!"
+            },
+            "no_choices": {
+                "title": "❌ Nessuna Scelta Disponibile",
+                "message": "Le scelte del prodotto sono scadute. Effettua una nuova ricerca vocale."
+            },
+            "invalid_choice": {
+                "title": "❌ Scelta Non Valida",
+                "message": "La scelta {choice_number} non è valida. Seleziona tra 1 e {max_choices}."
+            },
+            "multiple_matches": {
+                "title": "🔍 Trovate Opzioni Multiple",
+                "message": "Trovati prodotti multipli per '{product_name}':\n\n{choices_list}\n\nUsa il servizio shopping_list_with_grocy.select_choice_by_number con il numero della tua scelta."
+            },
+            "product_created": {
+                "title": "Nuovo Prodotto Creato",
+                "message": "Il prodotto '{product_name}' è stato creato automaticamente in Grocy (ID: {product_id})"
+            }
+        },
+        "todo": {
+            "product_selected_title": "✅ Prodotto Selezionato",
+            "product_added": "Scelta {choice}: {product} aggiunto alla tua lista della spesa!",
+            "multiple_choice_title": "Scelte multiple per '{term}'",
+            "multiple_choice_message": "Più prodotti corrispondono alla tua richiesta:\n\n{options}\n\n📋 Per aggiungere, vai in Strumenti Sviluppatore → Servizi e copia-incolla:\n\n{yaml}"
+        },
+        "voice_responses": {
+            "sync_not_enabled": "La sincronizzazione bidirezionale non è ancora abilitata.",
+            "no_choices": "Nessuna scelta disponibile. Le scelte precedenti sono scadute, effettua una nuova ricerca.",
+            "invalid_choice": "Scelta {choice_number} non valida. Le scelte disponibili vanno da 1 a {max_choices}. Ripeti la tua scelta.",
+            "product_added": "{product_name} (x{quantity}) aggiunto alla tua lista della spesa!",
+            "selection_error": "Errore nella selezione della scelta {choice_number}. Riprova.",
+            "add_error": "Errore nell'aggiungere {product_name}.",
+            "no_product_name": "Non ho capito il nome del prodotto.",
+            "multiple_choices_detailed": "Trovati prodotti multipli per {product_name} (x{quantity}). Le tue opzioni sono:\n{choices_list}.\nDi 'scelta' seguito dal numero della tua scelta.",
+            "multiple_choices_simple": "Trovate scelte multiple per {product_name} (x{quantity}), controlla l'app.",
+            "product_success": "{product_name} (x{quantity}) aggiunto alla tua lista della spesa!",
+            "product_error": "Errore nell'aggiungere {product_name}",
+            "multiple_choices_voice": "Ho trovato {count} scelte per {product_name}: {choices_text}. Di il numero della tua scelta, ad esempio 'Scelta 2'.",
+            "create_new_product": "🆕 Crea '{product_name}' come nuovo prodotto",
+            "product_created": "✅ {product_name} (x{quantity}) creato e aggiunto alla tua lista della spesa!",
+            "product_created_notification_title": "Nuovo Prodotto Creato",
+            "product_created_notification_message": "Il prodotto '{product_name}' è stato creato automaticamente in Grocy (ID: {product_id})",
+            "choice_number": "numero",
+            "no_choice_input": "Nessun input vocale fornito per la scelta.",
+            "invalid_voice_choice": "Non ho capito '{voice_input}'. Di un numero da 1 a 5, ad esempio 'scelta uno' o 'numero due'."
+        }
+    }
+}
