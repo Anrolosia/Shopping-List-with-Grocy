@@ -95,6 +95,36 @@ jobs:
               echo ""
             fi
 
+            # New contributors — auteurs présents dans ce range mais jamais avant
+            if [ -n "$PREV_TAG" ]; then
+              ALL_BEFORE=$(git log ${PREV_TAG} --pretty=format:"%ae|%an" 2>/dev/null || true)
+              NEW_CONTRIBUTORS=""
+              while IFS='|' read -r email name; do
+                if ! echo "$ALL_BEFORE" | grep -q "^${email}|"; then
+                  # Trouver le username GitHub via l'API
+                  GH_USER=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"                     "https://api.github.com/search/users?q=${email}+in:email"                     | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['items'][0]['login'] if d['total_count']>0 else '')" 2>/dev/null || true)
+                  if [ -n "$GH_USER" ]; then
+                    NEW_CONTRIBUTORS="${NEW_CONTRIBUTORS}@${GH_USER}|${name}"
+                  else
+                    NEW_CONTRIBUTORS="${NEW_CONTRIBUTORS}|${name}"
+                  fi
+                fi
+              done < <(git log ${PREV_TAG}..HEAD --pretty=format:"%ae|%an" | sort -u)
+
+              if [ -n "$NEW_CONTRIBUTORS" ]; then
+                echo "### 🎉 New Contributors"
+                echo ""
+                echo "$NEW_CONTRIBUTORS" | while IFS='|' read -r ghuser name; do
+                  if [ -n "$ghuser" ]; then
+                    echo "- ${ghuser} made their first contribution"
+                  else
+                    echo "- **${name}** made their first contribution"
+                  fi
+                done
+                echo ""
+              fi
+            fi
+
             if [ -n "$PREV_TAG" ]; then
               echo "---"
               echo "**Full changelog:** [\`${PREV_TAG}...${CURRENT_TAG}\`](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG})"
