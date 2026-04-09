@@ -36,6 +36,8 @@ blueprint:
               value: "spanish"
             - label: "Deutsch"
               value: "german"
+            - label: "Italiano"
+              value: "italian"
 
 variables:
   todo_entity: !input todo_entity
@@ -74,6 +76,13 @@ trigger:
       - "Setze {product} auf [meine] Einkaufsliste"
       - "Ich brauche {product}"
 
+      - "Aggiungi {quantity} {product} alla [mia] lista della spesa"
+      - "Metti {quantity} {product} sulla [mia] lista della spesa"
+      - "Ho bisogno di {quantity} {product}"
+      - "Aggiungi {product} alla [mia] lista della spesa"
+      - "Metti {product} sulla [mia] lista della spesa"
+      - "Ho bisogno di {product}"
+
       - "Choix {choice_text}"
       - "Le {choice_text}"
       - "Numéro {choice_text}"
@@ -87,6 +96,9 @@ trigger:
       - "Auswahl {choice_text}"
       - "Nummer {choice_text}"
       - "Die {choice_text}"
+      - "Scelta {choice_text}"
+      - "Numero {choice_text}"
+      - "Opzione {choice_text}"
     id: conversation
   - platform: event
     event_type: grocy_voice_choice_result
@@ -107,7 +119,8 @@ action:
             value_template: "{{ not state_attr('todo.shopping_list_with_grocy_liste_de_courses', 'enable_bidirectional_sync') }}"
         then:
           - set_conversation_response: >
-              {{ state_attr('sensor.shopping_list_with_grocy_voice_response_helper', 'sync_not_enabled') | default('Bidirectional Sync not enabled.') }}
+              {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+              {{ domain_data.get('sync_not_enabled', 'Bidirectional Sync not enabled.') }}
         else:
           - if:
               - condition: template
@@ -124,10 +137,12 @@ action:
               - if:
                   - condition: template
                     value_template: >
-                      {{ state_attr('sensor.shopping_list_with_grocy_voice_response_helper', 'voice_response') | default('') != '' }}
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', '') != '' }}
                 then:
                   - set_conversation_response: >
-                      {{ state_attr('sensor.shopping_list_with_grocy_voice_response_helper', 'voice_response') | default('Error processing choice.') }}
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', 'Error processing choice.') }}
                 else:
                   - set_conversation_response: "Choice {{ choice_text }} processed, check notifications for details."
 
@@ -145,10 +160,12 @@ action:
               - if:
                   - condition: template
                     value_template: >
-                      {{ state_attr('sensor.shopping_list_with_grocy_voice_response_helper', 'voice_response') | default('') != '' }}
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', '') != '' }}
                 then:
                   - set_conversation_response: >
-                      {{ state_attr('sensor.shopping_list_with_grocy_voice_response_helper', 'voice_response') | default('Error retrieving response.') }}
+                      {% set domain_data = states.sensor.shopping_list_with_grocy_voice_response_helper.attributes %}
+                      {{ domain_data.get('voice_response', 'Error retrieving response.') }}
                 else:
                   - set_conversation_response: "{{ product_name }} processed, check notifications for details."
 
