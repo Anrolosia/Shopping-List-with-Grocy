@@ -125,7 +125,11 @@ class ShoppingListWithGrocyApi:
             )
 
             for in_shopping_list in data["shopping_list"]:
-                if product_id != int(in_shopping_list["product_id"]):
+                raw_pid = in_shopping_list.get("product_id")
+                if raw_pid is None:
+                    # Note-only item, no product linked — skip
+                    continue
+                if product_id != int(raw_pid):
                     continue
 
                 shopping_list_id = in_shopping_list["shopping_list_id"]
@@ -360,7 +364,11 @@ class ShoppingListWithGrocyApi:
             qty_in_shopping_lists = 0
 
             for in_shopping_list in data["shopping_list"]:
-                if product_id == int(in_shopping_list["product_id"]):
+                raw_pid = in_shopping_list.get("product_id")
+                if raw_pid is None:
+                    # Grocy allows note-only shopping list items with no product
+                    continue
+                if product_id == int(raw_pid):
                     shopping_list_id = int(in_shopping_list["shopping_list_id"])
                     in_shop_list = str(
                         round(int(in_shopping_list["amount"]) / qty_factor)

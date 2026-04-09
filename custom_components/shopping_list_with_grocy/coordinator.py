@@ -143,7 +143,7 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
                             existing_attributes = self._parsed_data[product_id][
                                 "attributes"
                             ]
-                            new_attributes = product_data["attributes"]
+                            new_attributes = product_data.get("attributes", {})
 
                             existing_shopping_keys = {
                                 key
