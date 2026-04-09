@@ -29,18 +29,7 @@ TESTS     := tests
 _version = $(shell python3 -c "import json; print(json.load(open('$(MANIFEST)'))['version'])")
 
 define _bump
-	python3 -c "\
-import json; \
-m = json.load(open('$(MANIFEST)')); \
-parts = list(map(int, m['version'].split('.'))); \
-idx = {'patch': 2, 'minor': 1, 'major': 0}['$(1)']; \
-parts[idx] += 1; \
-[parts.__setitem__(i, 0) for i in range(idx+1, 3)]; \
-m['version'] = '.'.join(map(str, parts)); \
-json.dump(m, open('$(MANIFEST)', 'w'), indent=2); \
-open('$(MANIFEST)', 'a').write('\n'); \
-print('Bumped to', m['version']) \
-"
+	@python3 scripts/bump_version.py $(MANIFEST) $(1)
 endef
 
 # ── Help ─────────────────────────────────────────────────────
