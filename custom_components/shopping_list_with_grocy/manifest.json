@@ -1,12 +1,17 @@
 {
   "domain": "shopping_list_with_grocy",
   "name": "Shopping List with Grocy",
-  "codeowners": ["@Anrolosia"],
+  "codeowners": [
+    "@Anrolosia"
+  ],
   "config_flow": true,
-  "dependencies": ["recorder", "http"],
+  "dependencies": [
+    "recorder",
+    "http"
+  ],
   "documentation": "https://github.com/Anrolosia/Shopping-List-with-Grocy",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/Anrolosia/Shopping-List-with-Grocy/issues",
   "requirements": [],
-  "version": "0.24.4"
+  "version": "0.25.0"
 }
