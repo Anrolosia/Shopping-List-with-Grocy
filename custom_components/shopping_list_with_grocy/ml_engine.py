@@ -133,8 +133,6 @@ class PurchasePredictionEngine:
 
         ratio = current_month_count / baseline if baseline > 0 else 0
 
-        normalized_score = min(1.0, ratio / 2.0)
-
         confidence = min(1.0, len(all_month_averages) / 6)
 
         return min(1.0, ratio * confidence)

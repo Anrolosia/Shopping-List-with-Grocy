@@ -1,7 +1,7 @@
 import logging
 import re
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol

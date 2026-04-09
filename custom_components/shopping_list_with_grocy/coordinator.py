@@ -1,4 +1,5 @@
-import asyncio
+"""Coordinator for the Shopping List with Grocy integration."""
+
 import logging
 import time
 from datetime import timedelta
@@ -10,6 +11,21 @@ from .const import DOMAIN
 from .utils import is_update_paused
 
 LOGGER = logging.getLogger(__name__)
+
+# TTL for ephemeral voice/choice entries before they are garbage-collected.
+_CHOICE_TTL_SECONDS = 2 * 60  # 2 minutes
+
+
+def _purge_stale_keys(mapping: dict, threshold: float) -> bool:
+    """Remove entries whose 'timestamp' is older than *threshold* seconds ago.
+
+    Returns True if anything was removed.
+    """
+    now = time.time()
+    stale = [k for k, v in mapping.items() if now - v.get("timestamp", 0) > threshold]
+    for k in stale:
+        del mapping[k]
+    return bool(stale)
 
 
 class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
@@ -35,9 +51,7 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
 
         homeassistant_products = self.data.get("homeassistant_products", {})
         if not isinstance(homeassistant_products, dict):
-            LOGGER.error(
-                "\u274c homeassistant_products is not a dictionary! Resetting."
-            )
+            LOGGER.error("❌ homeassistant_products is not a dictionary! Resetting.")
             homeassistant_products = {}
         self._parsed_data.update(homeassistant_products)
 
@@ -60,64 +74,33 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         await self.retrieve_data(True)
         return self.data
 
-    async def _cleanup_orphaned_choices(self) -> None:
-        """Clean up orphaned product choices older than 2 minutes."""
+    async def cleanup_orphaned_choices(self) -> None:
+        """Garbage-collect ephemeral voice/choice data older than TTL.
+
+        Single authoritative implementation — services.py delegates here
+        instead of duplicating the logic.
+        """
         if DOMAIN not in self.hass.data:
             return
 
-        current_time = time.time()
-        cleanup_threshold = 2 * 60  # 2 minutes in seconds
-        cleaned_something = False
+        domain = self.hass.data[DOMAIN]
+        changed = False
 
-        product_choices = self.hass.data.get(DOMAIN, {}).get("product_choices", {})
-        if product_choices:
-            keys_to_remove = []
-            for choice_key, choice_data in product_choices.items():
-                choice_timestamp = choice_data.get("timestamp", 0)
-                age_seconds = current_time - choice_timestamp
-                if age_seconds > cleanup_threshold:
-                    keys_to_remove.append(choice_key)
+        for bucket in ("product_choices", "recent_multiple_choices", "voice_responses"):
+            mapping = domain.get(bucket, {})
+            if mapping:
+                changed |= _purge_stale_keys(mapping, _CHOICE_TTL_SECONDS)
 
-            for key in keys_to_remove:
-                del product_choices[key]
-                cleaned_something = True
-
-        recent_choices = self.hass.data.get(DOMAIN, {}).get(
-            "recent_multiple_choices", {}
-        )
-        if recent_choices:
-            keys_to_remove = []
-            for choice_key, choice_data in recent_choices.items():
-                choice_timestamp = choice_data.get("timestamp", 0)
-                age_seconds = current_time - choice_timestamp
-                if age_seconds > cleanup_threshold:
-                    keys_to_remove.append(choice_key)
-
-            for key in keys_to_remove:
-                del recent_choices[key]
-                cleaned_something = True
-
-        voice_responses = self.hass.data.get(DOMAIN, {}).get("voice_responses", {})
-        if voice_responses:
-            keys_to_remove = []
-            for response_key, response_data in voice_responses.items():
-                response_timestamp = response_data.get("timestamp", 0)
-                age_seconds = current_time - response_timestamp
-                if age_seconds > cleanup_threshold:
-                    keys_to_remove.append(response_key)
-
-            for key in keys_to_remove:
-                del voice_responses[key]
-                cleaned_something = True
-
-        if cleaned_something:
-            from homeassistant.helpers.dispatcher import async_dispatcher_send
-
+        if changed:
             async_dispatcher_send(self.hass, "grocy_multiple_choices_updated")
 
-    async def retrieve_data(self, force=False):
+    # Keep the old private name as an alias so existing callers inside this
+    # file don't break while we migrate them.
+    _cleanup_orphaned_choices = cleanup_orphaned_choices
 
-        await self._cleanup_orphaned_choices()
+    async def retrieve_data(self, force=False):
+        """Fetch fresh data from Grocy if the DB has changed."""
+        await self.cleanup_orphaned_choices()
 
         try:
             paused = is_update_paused(self.hass)

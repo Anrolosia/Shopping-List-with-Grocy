@@ -1,19 +1,14 @@
 import asyncio
 import base64
-import copy
-import json
 import logging
 import re
-import time
 import unicodedata
-from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from difflib import SequenceMatcher
 from urllib.parse import urlencode
 
 import aiohttp
 from async_timeout import timeout
-from dateutil.relativedelta import relativedelta
 from homeassistant.components.todo import TodoItemStatus
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -311,7 +306,7 @@ class ShoppingListWithGrocyApi:
         self.ha_products = set(rex.findall("|".join(entities)))
 
         quantity_units = {q["id"]: q["name"] for q in data["quantity_units"]}
-        locations = {l["id"]: l["name"] for l in data["locations"]}
+        locations = {loc["id"]: loc["name"] for loc in data["locations"]}
         product_groups = {g["id"]: g["name"] for g in data["product_groups"]}
 
         current_product_ids = {str(product["id"]) for product in data["products"]}
@@ -738,7 +733,7 @@ class ShoppingListWithGrocyApi:
         if match1:
             product_name = match1.group(1).strip()
             quantity = int(match1.group(2))
-            LOGGER.error(
+            LOGGER.debug(
                 "🔍 Extracted from HA item '%s' (pattern 1): name='%s', qty=%d",
                 item_name,
                 product_name,
@@ -751,7 +746,7 @@ class ShoppingListWithGrocyApi:
         if match2:
             quantity = int(match2.group(1))
             product_name = match2.group(2).strip()
-            LOGGER.error(
+            LOGGER.debug(
                 "🔍 Extracted from HA item '%s' (pattern 2): name='%s', qty=%d",
                 item_name,
                 product_name,
@@ -759,9 +754,8 @@ class ShoppingListWithGrocyApi:
             )
             return product_name, quantity
 
-        LOGGER.error(
-            "🔍 No pattern matched for HA item '%s': name='%s', qty=1",
-            item_name,
+        LOGGER.debug(
+            "🔍 No pattern matched for HA item '%s': falling back to full name, qty=1",
             item_name,
         )
         return item_name, 1
@@ -1021,8 +1015,8 @@ class ShoppingListWithGrocyApi:
                 item_summary
             )
 
-            LOGGER.error(
-                "🔍 DEBUG: item_summary='%s' -> product_name='%s', quantity=%d",
+            LOGGER.debug(
+                "🔍 item_summary='%s' -> product_name='%s', quantity=%d",
                 item_summary,
                 product_name,
                 quantity,
@@ -1052,10 +1046,7 @@ class ShoppingListWithGrocyApi:
                 )
 
                 if should_auto_add:
-
                     matched_product = matches[0]
-                    search_type = search_result.get("search_type", "unknown")
-
                     add_result = await self.add_product_to_grocy_shopping_list(
                         matched_product["id"], quantity, shopping_list_id
                     )
@@ -1076,7 +1067,6 @@ class ShoppingListWithGrocyApi:
                             "error": "Failed to add product to shopping list",
                         }
                 else:
-
                     matches_with_create_option = matches.copy()
                     create_option_text = await self.get_frontend_translation(
                         "create_new_product", product_name=product_name
@@ -1127,7 +1117,7 @@ class ShoppingListWithGrocyApi:
     def stop_bidirectional_sync(self, reason: str = "manual"):
         """Emergency stop for bidirectional sync."""
         self.bidirectional_sync_stopped = True
-        LOGGER.error(
+        LOGGER.warning(
             "🛑 EMERGENCY STOP: Bidirectional sync has been stopped. Reason: %s", reason
         )
 
@@ -1146,7 +1136,7 @@ class ShoppingListWithGrocyApi:
     def restart_bidirectional_sync(self):
         """Restart bidirectional sync after emergency stop."""
         self.bidirectional_sync_stopped = False
-        LOGGER.error("🔄 Bidirectional sync has been restarted")
+        LOGGER.info("🔄 Bidirectional sync has been restarted")
 
         self.hass.async_create_task(
             self.hass.services.async_call(
@@ -1220,17 +1210,17 @@ class ShoppingListWithGrocyApi:
                 self.final_data = dict(zip(titles, results))
 
                 if self.disable_timeout:
-                    self.final_data["homeassistant_products"] = (
-                        await self.parse_products(self.final_data)
-                    )
+                    self.final_data[
+                        "homeassistant_products"
+                    ] = await self.parse_products(self.final_data)
                     self.final_data["shopping_lists_data"] = self.build_item_list(
                         self.final_data
                     )
                 else:
                     async with timeout(t):
-                        self.final_data["homeassistant_products"] = (
-                            await self.parse_products(self.final_data)
-                        )
+                        self.final_data[
+                            "homeassistant_products"
+                        ] = await self.parse_products(self.final_data)
                         self.final_data["shopping_lists_data"] = self.build_item_list(
                             self.final_data
                         )

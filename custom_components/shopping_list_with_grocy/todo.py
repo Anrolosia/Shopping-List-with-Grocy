@@ -18,7 +18,6 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
 
-from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
 from .const import DOMAIN
 from .coordinator import ShoppingListWithGrocyCoordinator
 from .frontend_translations import async_load_frontend_translations, get_todo_strings
@@ -73,7 +72,6 @@ class ShoppingListWithGrocyTodoListEntity(
 
         shopping_lists_data = self.coordinator.data.get("shopping_lists_data", [])
         if shopping_lists_data:
-
             for list_data in shopping_lists_data:
                 if str(list_data.get("id")) == str(self._list_id):
                     self._data = list_data
@@ -85,7 +83,7 @@ class ShoppingListWithGrocyTodoListEntity(
             )
             if shopping_list:
                 self._data = shopping_list
-                new_name = f"{self._list_prefix} {shopping_list['name'] or f'List #{shopping_list['id']}'}".strip()
+                new_name = f"{self._list_prefix} {shopping_list['name'] or f'List #{shopping_list["id"]}'}".strip()
                 if self._attr_name != new_name:
                     self._attr_name = new_name
 
@@ -156,7 +154,6 @@ class ShoppingListWithGrocyTodoListEntity(
 
     @property
     def extra_state_attributes(self):
-
         config_entry = None
         for entry in self.hass.config_entries.async_entries(DOMAIN):
             config_entry = entry
@@ -188,7 +185,6 @@ class ShoppingListWithGrocyTodoListEntity(
             )
 
             if result["success"]:
-
                 new_product = {
                     "name": f"{result['product_name']} (x{result['quantity']})",
                     "shop_list_id": f"temp_{result['product_id']}",
@@ -323,7 +319,6 @@ class ShoppingListWithGrocyTodoListEntity(
         """Update an existing todo item."""
 
         try:
-
             checked = item.status == TodoItemStatus.COMPLETED
 
             for product in self._data.get("products", []):

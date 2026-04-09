@@ -1,14 +1,10 @@
-from datetime import datetime
 from typing import Any, Dict
 
-import pytz
 import voluptuous as vol
-from dateutil.tz import tzlocal
 from homeassistant.helpers import config_validation as cv
-from voluptuous import ALLOW_EXTRA, PREVENT_EXTRA, In, Optional, Required, Schema
+from voluptuous import ALLOW_EXTRA, PREVENT_EXTRA, Optional, Required, Schema
 
 from .analysis_const import (
-    CONF_ANALYSIS_SETTINGS,
     CONF_CONSUMPTION_WEIGHT,
     CONF_FREQUENCY_WEIGHT,
     CONF_SCORE_THRESHOLD,

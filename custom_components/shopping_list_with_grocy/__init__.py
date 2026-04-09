@@ -1,18 +1,16 @@
 import logging
 import re
 import uuid
-from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, asyncio
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
 from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
-from .const import DOMAIN, STATE_INIT
+from .const import DOMAIN
 from .coordinator import ShoppingListWithGrocyCoordinator
 from .frontend import async_setup_frontend, async_unload_frontend
 from .schema import configuration_schema
@@ -73,8 +71,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         LOGGER.error("❌ Migration failed. Initialization stopped.")
         return False
 
-    await async_setup_frontend(hass)
-
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN].setdefault("instances", {})
     hass.data[DOMAIN].setdefault("entities", {})
@@ -108,7 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     await coordinator.async_config_entry_first_refresh()
 
-    if DOMAIN in hass.data and hass.data[DOMAIN]["todo_initialized"] == True:
+    if DOMAIN in hass.data and hass.data[DOMAIN]["todo_initialized"]:
         LOGGER.info("⚠️ TODO setup already initialized, skipping duplicate setup.")
     else:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -265,7 +261,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         unique_id = str(uuid.uuid4())
 
         v2_options: ConfigEntry = {**config_entry.options}
-        if v2_options is not None and len(v2_options) < 0:
+        if v2_options:
             v2_options["unique_id"] = unique_id
 
         v2_data: ConfigEntry = {**config_entry.data}
@@ -277,7 +273,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     if config_entry.version == 2:
         v2_options: ConfigEntry = {**config_entry.options}
-        if v2_options is not None and len(v2_options) < 0:
+        if v2_options:
             v2_options["adding_images"] = True
 
         v2_data: ConfigEntry = {**config_entry.data}
@@ -289,8 +285,8 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     if config_entry.version == 3:
         v2_options: ConfigEntry = {**config_entry.options}
-        if v2_options is not None and len(v2_options) < 0:
-            if v2_options["adding_images"]:
+        if v2_options:
+            if v2_options.get("adding_images"):
                 v2_options["image_download_size"] = 100
             else:
                 v2_options["image_download_size"] = 0
@@ -338,10 +334,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
 
     if unload_ok:
-        if DOMAIN in hass.data:
-            hass.data.pop(DOMAIN)
-
-        if not hass.data.get(DOMAIN, {}):
-            async_unload_services(hass)
+        hass.data.pop(DOMAIN, None)
+        async_unload_services(hass)
 
     return unload_ok

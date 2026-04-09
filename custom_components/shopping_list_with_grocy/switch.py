@@ -18,7 +18,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 class ShoppingListWithGrocySwitch(SwitchEntity):
-
     def __init__(self, coordinator, object_id, name):
         unique_id = "pause_update_shopping_list_with_grocy"
         entity_id = f"switch.{unique_id}"
