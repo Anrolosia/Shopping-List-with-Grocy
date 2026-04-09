@@ -1,7 +1,7 @@
 import logging
 import re
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -68,7 +68,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                 CONF_SEASONAL_WEIGHT: DEFAULT_SEASONAL_WEIGHT,
                 CONF_SCORE_THRESHOLD: DEFAULT_SCORE_THRESHOLD,
             }
-        
+
         if CONF_SELECTION_CRITERIA not in self.options:
             self.options[CONF_SELECTION_CRITERIA] = {
                 CONF_PREFER_GENERIC_PRODUCTS: DEFAULT_PREFER_GENERIC_PRODUCTS,
@@ -176,15 +176,11 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
 
         # Create base schema
         base_schema = {
-            vol.Required(
-                "api_url", default=self.options.get("api_url", "")
-            ): str,
+            vol.Required("api_url", default=self.options.get("api_url", "")): str,
             vol.Required(
                 "verify_ssl", default=self.options.get("verify_ssl", True)
             ): bool,
-            vol.Required(
-                "api_key", default=self.options.get("api_key", "")
-            ): str,
+            vol.Required("api_key", default=self.options.get("api_key", "")): str,
             vol.Optional(
                 "disable_timeout",
                 default=self.options.get("disable_timeout", False),
@@ -244,7 +240,8 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
                     ),
                     CONF_SUGGEST_CREATE_ONLY_NO_MATCH: user_input.get(
-                        CONF_SUGGEST_CREATE_ONLY_NO_MATCH, DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH
+                        CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
+                        DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
                     ),
                 }
 
@@ -271,8 +268,11 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
 
                 old_analysis_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
                 old_selection_criteria = self.options.get(CONF_SELECTION_CRITERIA, {})
-                
-                if old_analysis_settings != analysis_settings or old_selection_criteria != selection_criteria:
+
+                if (
+                    old_analysis_settings != analysis_settings
+                    or old_selection_criteria != selection_criteria
+                ):
                     await _create_restart_repair_issue(
                         self.hass, "restart_required_analysis"
                     )
@@ -308,12 +308,12 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                             CONF_SEASONAL_WEIGHT, DEFAULT_SEASONAL_WEIGHT
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
-                    
                     # Selection Criteria
                     vol.Optional(
                         CONF_PREFER_GENERIC_PRODUCTS,
                         default=current_selection_criteria.get(
-                            CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
+                            CONF_PREFER_GENERIC_PRODUCTS,
+                            DEFAULT_PREFER_GENERIC_PRODUCTS,
                         ),
                     ): bool,
                     vol.Optional(
@@ -325,7 +325,8 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                     vol.Optional(
                         CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
                         default=current_selection_criteria.get(
-                            CONF_SUGGEST_CREATE_ONLY_NO_MATCH, DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH
+                            CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
+                            DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
                         ),
                     ): bool,
                 }

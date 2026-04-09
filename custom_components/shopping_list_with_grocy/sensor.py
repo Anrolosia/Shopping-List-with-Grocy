@@ -6,12 +6,9 @@ from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, ENTITY_VERSION, CONF_ENABLE_PRODUCT_SENSORS
@@ -49,7 +46,6 @@ class GrocyMultipleChoicesSensor(SensorEntity):
             self._event_unsub = None
 
     async def _handle_multiple_choices_event(self, event=None):
-
         self.async_write_ha_state()
 
     @property
@@ -149,8 +145,6 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
                 }
 
                 self.async_write_ha_state()
-            else:
-                remaining = timedelta(hours=1) - time_diff
 
         except (ValueError, TypeError) as e:
             LOGGER.warning("Error parsing last_update time for auto-reset: %s", e)
@@ -324,8 +318,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     async def async_add_or_update_dynamic_sensor(product):
         # Check current configuration dynamically
-        current_config_data = config_entry.options if config_entry.options else config_entry.data
-        current_enable_product_sensors = current_config_data.get(CONF_ENABLE_PRODUCT_SENSORS, True)
+        current_config_data = (
+            config_entry.options if config_entry.options else config_entry.data
+        )
+        current_enable_product_sensors = current_config_data.get(
+            CONF_ENABLE_PRODUCT_SENSORS, True
+        )
 
         if not current_enable_product_sensors:
             product_id = str(product["product_id"])
@@ -392,7 +390,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     force_picture_update = True
 
             if state_changed or attributes_changed or force_picture_update:
-
                 hass.states.async_set(
                     entity_id, new_state, attributes=updated_attributes
                 )
@@ -401,12 +398,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
                 if product_id in coordinator._parsed_data:
                     coordinator._parsed_data[product_id] = copy.deepcopy(product)
-                    coordinator._parsed_data[product_id][
-                        "qty_in_shopping_lists"
-                    ] = new_state
-                    coordinator._parsed_data[product_id][
-                        "attributes"
-                    ] = updated_attributes
+                    coordinator._parsed_data[product_id]["qty_in_shopping_lists"] = (
+                        new_state
+                    )
+                    coordinator._parsed_data[product_id]["attributes"] = (
+                        updated_attributes
+                    )
         else:
             sensor = DynamicProductSensor(coordinator, product)
             async_add_entities([sensor])
@@ -428,13 +425,16 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     async_dispatcher_connect(hass, f"{DOMAIN}_remove_sensor", async_remove_grocy_sensor)
 
     # Only process existing products if product sensors are enabled
-    if enable_product_sensors and hasattr(coordinator, "_parsed_data") and coordinator._parsed_data:
+    if (
+        enable_product_sensors
+        and hasattr(coordinator, "_parsed_data")
+        and coordinator._parsed_data
+    ):
         for product in coordinator._parsed_data.values():
             await async_add_or_update_dynamic_sensor(product)
 
 
 class DynamicProductSensor(CoordinatorEntity, SensorEntity):
-
     def __init__(self, coordinator, product):
         super().__init__(coordinator)
         product_id = product.get("product_id", "unknown")

@@ -1,19 +1,14 @@
 import asyncio
 import base64
-import copy
-import json
 import logging
 import re
-import time
 import unicodedata
-from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from difflib import SequenceMatcher
 from urllib.parse import urlencode
 
 import aiohttp
 from async_timeout import timeout
-from dateutil.relativedelta import relativedelta
 from homeassistant.components.todo import TodoItemStatus
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -125,7 +120,10 @@ class ShoppingListWithGrocyApi:
             )
 
             for in_shopping_list in data["shopping_list"]:
-                if product_id != int(in_shopping_list["product_id"]):
+                raw_pid = in_shopping_list.get("product_id")
+                if raw_pid is None:
+                    continue
+                if product_id != int(raw_pid):
                     continue
 
                 shopping_list_id = in_shopping_list["shopping_list_id"]
@@ -307,7 +305,7 @@ class ShoppingListWithGrocyApi:
         self.ha_products = set(rex.findall("|".join(entities)))
 
         quantity_units = {q["id"]: q["name"] for q in data["quantity_units"]}
-        locations = {l["id"]: l["name"] for l in data["locations"]}
+        locations = {loc["id"]: loc["name"] for loc in data["locations"]}
         product_groups = {g["id"]: g["name"] for g in data["product_groups"]}
 
         current_product_ids = {str(product["id"]) for product in data["products"]}
@@ -733,26 +731,28 @@ class ShoppingListWithGrocyApi:
         """Apply selection criteria to filter matches."""
         if not matches or not selection_criteria:
             return matches
-        
+
         # Get configuration values
         prefer_generic = selection_criteria.get("prefer_generic_products", False)
         auto_select_first = selection_criteria.get("auto_select_first", False)
-        
+
         # First criterion: prefer generic products (products without parent)
         if prefer_generic:
-            generic_products = [match for match in matches if not match.get("parent_product_id")]
+            generic_products = [
+                match for match in matches if not match.get("parent_product_id")
+            ]
             if generic_products:
                 matches = generic_products
                 LOGGER.debug(
                     "Applied 'prefer generic products' filter: %d generic products found",
                     len(generic_products),
                 )
-        
+
         # Second criterion: auto-select first if enabled and only one match remains
         if auto_select_first and len(matches) == 1:
             LOGGER.debug("Auto-selecting first product: %s", matches[0].get("name"))
             return matches
-        
+
         # If auto_select_first is enabled but multiple matches remain, select the first one
         if auto_select_first and len(matches) > 1:
             selected_match = matches[0]
@@ -761,7 +761,7 @@ class ShoppingListWithGrocyApi:
                 selected_match.get("name"),
             )
             return [selected_match]
-        
+
         return matches
 
     async def search_product_in_grocy(self, search_name: str) -> dict:
@@ -844,9 +844,7 @@ class ShoppingListWithGrocyApi:
                 "search_term": search_name,
             }
 
-        LOGGER.error(
-            "No matches found for '%s' (including fuzzy search)", search_name
-        )
+        LOGGER.error("No matches found for '%s' (including fuzzy search)", search_name)
         return {
             "found": False,
             "matches": [],
@@ -999,7 +997,10 @@ class ShoppingListWithGrocyApi:
             raise
 
     async def handle_ha_todo_item_creation(
-        self, item_summary: str, shopping_list_id: int = 1, selection_criteria: dict | None = None
+        self,
+        item_summary: str,
+        shopping_list_id: int = 1,
+        selection_criteria: dict | None = None,
     ) -> dict:
         """Handle creation of a todo item from Home Assistant."""
         # Step 1: Perform initial checks
@@ -1016,10 +1017,14 @@ class ShoppingListWithGrocyApi:
                 return {"success": False, "reason": "no_data_safety_stop"}
 
         try:
-            product_name, quantity = self.extract_product_name_from_ha_item(item_summary)
+            product_name, quantity = self.extract_product_name_from_ha_item(
+                item_summary
+            )
             LOGGER.debug(
                 "Processing: item_summary='%s' -> product_name='%s', quantity=%d",
-                item_summary, product_name, quantity,
+                item_summary,
+                product_name,
+                quantity,
             )
 
             if not product_name:
@@ -1037,17 +1042,25 @@ class ShoppingListWithGrocyApi:
                 if len(matches) != original_count:
                     LOGGER.debug(
                         "Selection criteria applied: %d -> %d matches",
-                        original_count, len(matches),
+                        original_count,
+                        len(matches),
                     )
 
             # Step 4: Add create option if applicable
             final_options = await self._prepare_final_options(
-                matches, product_name, selection_criteria, search_result.get("search_type", "unknown")
+                matches,
+                product_name,
+                selection_criteria,
+                search_result.get("search_type", "unknown"),
             )
 
             # Step 5: Execute appropriate action
             return await self._execute_action(
-                final_options, product_name, quantity, shopping_list_id, search_result.get("search_type", "unknown")
+                final_options,
+                product_name,
+                quantity,
+                shopping_list_id,
+                search_result.get("search_type", "unknown"),
             )
 
         except Exception as e:
@@ -1055,15 +1068,21 @@ class ShoppingListWithGrocyApi:
             return {"success": False, "reason": "error", "error": str(e)}
 
     async def _prepare_final_options(
-        self, matches: list, product_name: str, selection_criteria: dict | None, search_type: str | None
+        self,
+        matches: list,
+        product_name: str,
+        selection_criteria: dict | None,
+        search_type: str | None,
     ) -> list:
         """Prepare the final list of options including create option if needed."""
         final_options = matches.copy()
-        
+
         # Determine if we should add create option
         should_add_create = True
         if selection_criteria:
-            suggest_create_only_no_match = selection_criteria.get("suggest_create_only_no_match", False)
+            suggest_create_only_no_match = selection_criteria.get(
+                "suggest_create_only_no_match", False
+            )
             # Don't add create option if we have matches and the criterion is enabled
             if suggest_create_only_no_match and matches:
                 should_add_create = False
@@ -1077,12 +1096,14 @@ class ShoppingListWithGrocyApi:
             create_option_text = await self.get_frontend_translation(
                 "create_new_product", product_name=product_name
             )
-            final_options.append({
-                "id": "create_new",
-                "name": create_option_text,
-                "similarity": 0.0,
-                "is_create_option": True,
-            })
+            final_options.append(
+                {
+                    "id": "create_new",
+                    "name": create_option_text,
+                    "similarity": 0.0,
+                    "is_create_option": True,
+                }
+            )
             if matches:  # Only log if we had matches
                 LOGGER.debug(
                     "Added create option to %d matches (suggest_create_only_no_match=False)",
@@ -1092,17 +1113,28 @@ class ShoppingListWithGrocyApi:
         return final_options
 
     async def _execute_action(
-        self, final_options: list, product_name: str, quantity: int, shopping_list_id: int, search_type: str | None
+        self,
+        final_options: list,
+        product_name: str,
+        quantity: int,
+        shopping_list_id: int,
+        search_type: str | None,
     ) -> dict:
         """Execute the appropriate action based on the final options."""
         # Auto-add logic for special cases
         if self._should_auto_add(final_options, product_name, search_type):
-            return await self._auto_add_product(final_options[0], product_name, quantity, shopping_list_id)
-        
+            return await self._auto_add_product(
+                final_options[0], product_name, quantity, shopping_list_id
+            )
+
         # Auto-select if only one non-create option remains
-        if len(final_options) == 1 and not final_options[0].get("is_create_option", False):
-            return await self._auto_select_product(final_options[0], product_name, quantity, shopping_list_id)
-        
+        if len(final_options) == 1 and not final_options[0].get(
+            "is_create_option", False
+        ):
+            return await self._auto_select_product(
+                final_options[0], product_name, quantity, shopping_list_id
+            )
+
         # Return multiple options for user selection
         return {
             "success": False,
@@ -1113,24 +1145,47 @@ class ShoppingListWithGrocyApi:
             "shopping_list_id": shopping_list_id,
         }
 
-    def _should_auto_add(self, final_options: list, product_name: str, search_type: str | None) -> bool:
+    def _should_auto_add(
+        self, final_options: list, product_name: str, search_type: str | None
+    ) -> bool:
         """Determine if we should auto-add the product without user intervention."""
         if not final_options or final_options[0].get("is_create_option", False):
             return False
-        
+
         return (
             search_type == "case_only"
-            or (search_type == "exact" and len([opt for opt in final_options if not opt.get("is_create_option", False)]) == 1)
-            or (len([opt for opt in final_options if not opt.get("is_create_option", False)]) == 1 
-                and self.is_case_only_difference(product_name, final_options[0]["name"]))
+            or (
+                search_type == "exact"
+                and len(
+                    [
+                        opt
+                        for opt in final_options
+                        if not opt.get("is_create_option", False)
+                    ]
+                )
+                == 1
+            )
+            or (
+                len(
+                    [
+                        opt
+                        for opt in final_options
+                        if not opt.get("is_create_option", False)
+                    ]
+                )
+                == 1
+                and self.is_case_only_difference(product_name, final_options[0]["name"])
+            )
         )
 
     async def _auto_add_product(
         self, product: dict, original_search: str, quantity: int, shopping_list_id: int
     ) -> dict:
         """Auto-add a product that matches special criteria."""
-        LOGGER.debug("Auto-adding product: %s (ID: %s)", product.get("name"), product.get("id"))
-        
+        LOGGER.debug(
+            "Auto-adding product: %s (ID: %s)", product.get("name"), product.get("id")
+        )
+
         add_result = await self.add_product_to_grocy_shopping_list(
             product["id"], quantity, shopping_list_id
         )
@@ -1157,9 +1212,10 @@ class ShoppingListWithGrocyApi:
         """Auto-select a product when it's the only option after filtering."""
         LOGGER.debug(
             "Auto-selecting single remaining product after filtering: %s (ID: %s)",
-            product.get("name"), product.get("id"),
+            product.get("name"),
+            product.get("id"),
         )
-        
+
         add_result = await self.add_product_to_grocy_shopping_list(
             product["id"], quantity, shopping_list_id
         )
@@ -1276,17 +1332,17 @@ class ShoppingListWithGrocyApi:
                 self.final_data = dict(zip(titles, results))
 
                 if self.disable_timeout:
-                    self.final_data["homeassistant_products"] = (
-                        await self.parse_products(self.final_data)
-                    )
+                    self.final_data[
+                        "homeassistant_products"
+                    ] = await self.parse_products(self.final_data)
                     self.final_data["shopping_lists_data"] = self.build_item_list(
                         self.final_data
                     )
                 else:
                     async with timeout(t):
-                        self.final_data["homeassistant_products"] = (
-                            await self.parse_products(self.final_data)
-                        )
+                        self.final_data[
+                            "homeassistant_products"
+                        ] = await self.parse_products(self.final_data)
                         self.final_data["shopping_lists_data"] = self.build_item_list(
                             self.final_data
                         )

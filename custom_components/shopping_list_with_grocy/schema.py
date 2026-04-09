@@ -1,14 +1,10 @@
-from datetime import datetime
 from typing import Any, Dict
 
-import pytz
 import voluptuous as vol
-from dateutil.tz import tzlocal
 from homeassistant.helpers import config_validation as cv
-from voluptuous import ALLOW_EXTRA, PREVENT_EXTRA, In, Optional, Required, Schema
+from voluptuous import ALLOW_EXTRA, PREVENT_EXTRA, Optional, Required, Schema
 
 from .analysis_const import (
-    CONF_ANALYSIS_SETTINGS,
     CONF_CONSUMPTION_WEIGHT,
     CONF_FREQUENCY_WEIGHT,
     CONF_SCORE_THRESHOLD,
@@ -20,7 +16,6 @@ from .analysis_const import (
 )
 from .const import (
     DOMAIN,
-    CONF_SELECTION_CRITERIA,
     CONF_PREFER_GENERIC_PRODUCTS,
     CONF_AUTO_SELECT_FIRST,
     CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
@@ -62,15 +57,16 @@ ANALYSIS_SCHEMA = vol.Schema(
 
 SELECTION_CRITERIA_SCHEMA = vol.Schema(
     {
-        Optional(CONF_PREFER_GENERIC_PRODUCTS, default=DEFAULT_PREFER_GENERIC_PRODUCTS): vol.All(
-            vol.Coerce(bool)
-        ),
+        Optional(
+            CONF_PREFER_GENERIC_PRODUCTS, default=DEFAULT_PREFER_GENERIC_PRODUCTS
+        ): vol.All(vol.Coerce(bool)),
         Optional(CONF_AUTO_SELECT_FIRST, default=DEFAULT_AUTO_SELECT_FIRST): vol.All(
             vol.Coerce(bool)
         ),
-        Optional(CONF_SUGGEST_CREATE_ONLY_NO_MATCH, default=DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH): vol.All(
-            vol.Coerce(bool)
-        ),
+        Optional(
+            CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
+            default=DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
+        ): vol.All(vol.Coerce(bool)),
     }
 )
 
