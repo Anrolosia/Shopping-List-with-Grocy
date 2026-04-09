@@ -1,49 +1,41 @@
-name: Shopping List with Grocy Integration Continuous Deployment
+name: Shopping List with Grocy — Release
 
 on:
   push:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: write
+
 jobs:
-  cd:
+  release:
+    name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      release_body: ${{ steps.release.outputs.RELEASE_BODY }}
     steps:
-      - name: Set the release version
-        shell: bash
-        run: echo "RELEASE_VERSION=${GITHUB_REF:11}" >> $GITHUB_ENV
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: 'main'
+          ref: main
           fetch-depth: 0
           fetch-tags: true
-      - name: Create changes
-        shell: bash
-        run: touch CHANGES.md
-      - name: Generate a changelog
-        uses: orhun/git-cliff-action@v1
+
+      - name: Set release version
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Generate changelog with git-cliff
+        uses: orhun/git-cliff-action@v3
         id: git-cliff
         with:
           config: cliff.toml
-          args: -vv --current --strip header
+          args: --verbose --current --strip header
         env:
           OUTPUT: CHANGES.md
-      - name: Set the release body
-        id: release
-        shell: bash
-        run: |
-          r=$(cat ${{ steps.git-cliff.outputs.changelog }})
-          r="${r//'%'/'%25'}"     # Multiline escape sequences for %
-          r="${r//$'\n'/'%0A'}"   # Multiline escape sequences for '\n'
-          r="${r//$'\r'/'%0D'}"   # Multiline escape sequences for '\r'
-          echo "::set-output name=RELEASE_BODY::$r"
-      - name: Create the release
-        uses: softprops/action-gh-release@v1
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           name: "Release v${{ env.RELEASE_VERSION }}"
-          body: ${{ steps.release.outputs.RELEASE_BODY }}
-        env:
-          GITHUB_REPOSITORY: Anrolosia/Shopping-List-with-Grocy
+          body_path: CHANGES.md
+          token: ${{ secrets.GITHUB_TOKEN }}
