@@ -1,7 +1,7 @@
 import logging
 import re
 import uuid
-from typing import Any
+from typing import Any, Dict, Optional
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -20,7 +20,7 @@ from .analysis_const import (
     DEFAULT_SCORE_THRESHOLD,
     DEFAULT_SEASONAL_WEIGHT,
 )
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ENABLE_PRODUCT_SENSORS
 from .services import async_create_restart_repair_issue
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,6 +118,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                 )
                 old_disable_timeout = self.options.get("disable_timeout", False)
                 old_image_size = self.options.get("image_download_size", 100)
+                old_product_sensors = self.options.get(CONF_ENABLE_PRODUCT_SENSORS, True)
 
                 settings_changed = (
                     old_api_url
@@ -130,6 +131,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         or old_disable_timeout
                         != user_input.get("disable_timeout", False)
                         or old_image_size != user_input.get("image_download_size", 100)
+                        or old_product_sensors != user_input.get(CONF_ENABLE_PRODUCT_SENSORS, True)
                     )
                 )
                 first_time_setup = not (old_api_url and old_api_key)
@@ -173,7 +175,11 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         "disable_notifications",
                         default=self.options.get("disable_notifications", False),
                     ): bool,
-                    vol.Optional("show_advanced", default=False): bool,
+                    vol.Optional(
+                CONF_ENABLE_PRODUCT_SENSORS,
+                default=self.options.get(CONF_ENABLE_PRODUCT_SENSORS, True),
+            ): bool,
+            vol.Optional("show_advanced", default=False): bool,
                 }
             ),
             errors=self._errors,
@@ -299,6 +305,9 @@ class ShoppingListWithGrocyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._errors["base"] = "invalid_api_url"
             if not self._errors:
                 self._data.update(user_input)
+
+                if CONF_ENABLE_PRODUCT_SENSORS not in self._data:
+                    self._data[CONF_ENABLE_PRODUCT_SENSORS] = True
 
                 await _create_restart_repair_issue(self.hass, "restart_required_setup")
 

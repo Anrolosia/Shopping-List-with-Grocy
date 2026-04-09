@@ -7,7 +7,8 @@
           "verify_ssl": "Verifica certificato SSL",
           "api_key": "Grocy - Chiave API",
           "image_download_size": "Dimensione immagini prodotto scaricate? (Seleziona 0 per disabilitare le immagini)",
-          "disable_timeout": "Disabilita timeout nelle chiamate di rete (ATTENZIONE: Usa a tuo rischio, potrebbe causare instabilità)"
+          "disable_timeout": "Disabilita timeout nelle chiamate di rete (ATTENZIONE: Usa a tuo rischio, potrebbe causare instabilità)",
+          "enable_product_sensors": "Abilita sensori individuali dei prodotti"
         }
       }
     },
@@ -31,7 +32,8 @@
           "image_download_size": "Dimensione immagini prodotto scaricate? (Seleziona 0 per disabilitare le immagini)",
           "show_advanced": "Mostra Impostazioni Algoritmo Avanzate (ATTENZIONE: Può compromettere la funzionalità se modificate incorrettamente)",
           "enable_bidirectional_sync": "Usa sincronizzazione bidirezionale",
-          "disable_notifications": "Disabilita notifiche (per l'assistente vocale)"
+          "disable_notifications": "Disabilita notifiche (per l'assistente vocale)",
+          "enable_product_sensors": "Abilita sensori individuali dei prodotti"
         }
       },
       "advanced": {

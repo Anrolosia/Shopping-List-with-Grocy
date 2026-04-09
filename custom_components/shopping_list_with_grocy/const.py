@@ -4,6 +4,9 @@ DOMAIN = "shopping_list_with_grocy"
 
 ENTITY_VERSION = 2
 
+# Configuration options
+CONF_ENABLE_PRODUCT_SENSORS = "enable_product_sensors"
+
 STATE_INIT = "init"
 STATE_READY = "ready"
 STATE_COMPLETED = "completed"
