@@ -23,19 +23,102 @@ jobs:
       - name: Set release version
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-      - name: Install git-cliff
+      - name: Generate release notes
+        id: notes
         run: |
-          curl -sSfL https://github.com/orhun/git-cliff/releases/latest/download/git-cliff-x86_64-unknown-linux-musl.tar.gz \
-            | tar -xz --strip-components=1 -C /usr/local/bin git-cliff-x86_64-unknown-linux-musl/git-cliff
+          PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p')
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
 
-      - name: Generate changelog
-        run: git-cliff --config cliff.toml --verbose --current --strip header --output CHANGES.md
-        env:
-          GITHUB_REPO: ${{ github.repository }}
+          {
+            echo "NOTES<<EOF"
+
+            if [ -z "$PREV_TAG" ]; then
+              RANGE="HEAD"
+              echo "## 🎉 Initial Release"
+              echo ""
+            else
+              RANGE="${PREV_TAG}..HEAD"
+              echo "## What's Changed"
+              echo ""
+            fi
+
+            FEATURES=$(git log $RANGE --pretty=format:"%s|%h" | grep -E "^feat(\(.+\))?:" || true)
+            if [ -n "$FEATURES" ]; then
+              echo "### ✨ Features"
+              echo "$FEATURES" | while IFS='|' read -r msg hash; do
+                clean=$(echo "$msg" | sed 's/^feat(\(.*\)):/[\1]/' | sed 's/^feat://')
+                echo "- $clean (\`$hash\`)"
+              done
+              echo ""
+            fi
+
+            FIXES=$(git log $RANGE --pretty=format:"%s|%h" | grep -E "^fix(\(.+\))?:" || true)
+            if [ -n "$FIXES" ]; then
+              echo "### 🐛 Bug Fixes"
+              echo "$FIXES" | while IFS='|' read -r msg hash; do
+                clean=$(echo "$msg" | sed 's/^fix(\(.*\)):/[\1]/' | sed 's/^fix://')
+                echo "- $clean (\`$hash\`)"
+              done
+              echo ""
+            fi
+
+            PERF=$(git log $RANGE --pretty=format:"%s|%h" | grep -E "^perf(\(.+\))?:" || true)
+            if [ -n "$PERF" ]; then
+              echo "### ⚡ Performance"
+              echo "$PERF" | while IFS='|' read -r msg hash; do
+                clean=$(echo "$msg" | sed 's/^perf(\(.*\)):/[\1]/' | sed 's/^perf://')
+                echo "- $clean (\`$hash\`)"
+              done
+              echo ""
+            fi
+
+            DOCS=$(git log $RANGE --pretty=format:"%s|%h" | grep -E "^docs(\(.+\))?:" || true)
+            if [ -n "$DOCS" ]; then
+              echo "### 📚 Documentation"
+              echo "$DOCS" | while IFS='|' read -r msg hash; do
+                clean=$(echo "$msg" | sed 's/^docs(\(.*\)):/[\1]/' | sed 's/^docs://')
+                echo "- $clean (\`$hash\`)"
+              done
+              echo ""
+            fi
+
+            CHORES=$(git log $RANGE --pretty=format:"%s|%h" | grep -E "^(chore|ci|build|refactor|style|test)(\(.+\))?:" || true)
+            if [ -n "$CHORES" ]; then
+              echo "<details>"
+              echo "<summary>🔧 Maintenance</summary>"
+              echo ""
+              echo "$CHORES" | while IFS='|' read -r msg hash; do
+                echo "- $msg (\`$hash\`)"
+              done
+              echo ""
+              echo "</details>"
+              echo ""
+            fi
+
+            if [ -n "$PREV_TAG" ]; then
+              echo "---"
+              echo "**Full changelog:** [\`${PREV_TAG}...${CURRENT_TAG}\`](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG})"
+            fi
+
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: actions/github-script@v7
+        env:
+          RELEASE_NOTES: ${{ steps.notes.outputs.NOTES }}
         with:
-          name: "Release v${{ env.RELEASE_VERSION }}"
-          body_path: CHANGES.md
-          token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Release v${{ env.RELEASE_VERSION }}`,
+              body: process.env.RELEASE_NOTES,
+              draft: false,
+              prerelease: tag.includes('-'),
+            });
+
+            console.log(`Release ${tag} created.`);
