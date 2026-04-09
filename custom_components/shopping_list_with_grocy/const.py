@@ -4,9 +4,6 @@ DOMAIN = "shopping_list_with_grocy"
 
 ENTITY_VERSION = 2
 
-# Configuration options
-CONF_ENABLE_PRODUCT_SENSORS = "enable_product_sensors"
-
 STATE_INIT = "init"
 STATE_READY = "ready"
 STATE_COMPLETED = "completed"
@@ -21,6 +18,16 @@ SERVICE_ATTR_PRODUCT_ID = "product_id"
 SERVICE_ATTR_SHOPPING_LIST_ID = "shopping_list_id"
 SERVICE_ATTR_NOTE = "note"
 SERVICE_ATTR_AMOUNT = "amount"
+
+# Selection Criteria Configuration Constants
+CONF_SELECTION_CRITERIA = "selection_criteria"
+CONF_PREFER_GENERIC_PRODUCTS = "prefer_generic_products"
+CONF_AUTO_SELECT_FIRST = "auto_select_first"
+CONF_SUGGEST_CREATE_ONLY_NO_MATCH = "suggest_create_only_no_match"
+
+DEFAULT_PREFER_GENERIC_PRODUCTS = False
+DEFAULT_AUTO_SELECT_FIRST = False
+DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH = False
 
 OTHER_FIELDS = {
     "qu_id_purchase",

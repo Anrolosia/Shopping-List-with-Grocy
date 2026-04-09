@@ -43,14 +43,22 @@
           "score_threshold": "Punteggio minimo di confidenza per i suggerimenti (0.0-1.0)",
           "consumption_weight": "Quanto considerare i modelli di utilizzo (0.0-1.0)",
           "frequency_weight": "Quanto considerare la cronologia degli acquisti (0.0-1.0)",
-          "seasonal_weight": "Quanto considerare le tendenze stagionali (0.0-1.0)"
+          "seasonal_weight": "Quanto considerare le tendenze stagionali (0.0-1.0)",
+          "prefer_generic_products": "Preferire prodotti generici (senza prodotto padre)",
+          "auto_select_first": "Seleziona automaticamente il primo risultato",
+          "suggest_create_only_no_match": "Suggerisci la creazione di nuovi prodotti solo quando non ci sono corrispondenze (nascondi l'opzione crea quando i prodotti corrispondono)"
         }
       }
     },
     "error": {
       "invalid_api_url": "L'URL di Grocy non è valido, utilizza un URL valido (http:// o https:// con nome dominio o indirizzo IP)",
       "weight_sum_error": "ERRORE: I pesi dell'algoritmo devono sommare esattamente a 1.0! La somma attuale non è valida. Regola i valori in modo che si sommino a 1.0.",
-      "invalid_analysis_settings": "Impostazioni algoritmo non valide fornite. Controlla i tuoi valori e riprova."
+      "invalid_analysis_settings": "Impostazioni algoritmo non valide fornite. Controlla i tuoi valori e riprova.",
+      "invalid_selection_criteria": "Criteri di selezione non validi. Controlla i tuoi valori e riprova.",
+      "bidirectional_sync_required": "I criteri di selezione richiedono la sincronizzazione bidirezionale abilitata. Abilita prima la sincronizzazione bidirezionale."
+    },
+    "abort": {
+      "bidirectional_sync_disabled": "I criteri di selezione sono disponibili solo quando la sincronizzazione bidirezionale è abilitata."
     }
   },
   "services": {

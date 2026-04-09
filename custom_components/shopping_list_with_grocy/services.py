@@ -5,6 +5,7 @@ import os
 import time
 from datetime import datetime, timedelta
 
+import homeassistant.helpers.entity_registry as er
 import voluptuous as vol
 from homeassistant.components.recorder.history import get_significant_states
 from homeassistant.core import callback
@@ -24,6 +25,7 @@ from .const import (
     SERVICE_REFRESH,
     SERVICE_REMOVE,
     SERVICE_SEARCH,
+    CONF_SELECTION_CRITERIA,
 )
 from .frontend_translations import (
     async_load_frontend_translations,
@@ -52,7 +54,9 @@ async def get_voice_translation(hass, voice_key: str, **kwargs) -> str:
 def get_translation(hass, key: str, language: str = "en", **kwargs) -> str:
     """Get translated string - use frontend translations for voice_responses."""
     try:
+
         if key.startswith("voice_responses."):
+
             return key
 
         if not language or language == "en":
@@ -65,6 +69,7 @@ def get_translation(hass, key: str, language: str = "en", **kwargs) -> str:
         )
 
         if not os.path.exists(translation_file):
+
             translation_file = os.path.join(
                 os.path.dirname(__file__), "translations", "en.json"
             )
@@ -78,6 +83,7 @@ def get_translation(hass, key: str, language: str = "en", **kwargs) -> str:
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
+
                 return key
 
         if isinstance(value, str) and kwargs:
@@ -86,7 +92,7 @@ def get_translation(hass, key: str, language: str = "en", **kwargs) -> str:
 
         return value
 
-    except Exception:
+    except Exception as e:
         return key
 
 
@@ -103,6 +109,7 @@ async def async_force_todo_entities_refresh(hass):
     for entity_entry in todo_entities:
         entity = hass.states.get(entity_entry.entity_id)
         if entity:
+
             entity_obj = hass.data.get("entity_components", {}).get("todo")
             if entity_obj:
                 for ent in entity_obj.entities:
@@ -189,7 +196,7 @@ async def async_suggest_grocery_list_service(call):
     try:
         translations = await async_load_frontend_translations(hass, user_language)
         suggestion_strings = get_notification_strings(translations, "suggestions")
-    except Exception:
+    except Exception as e:
         suggestion_strings = {
             "title": "Grocy Shopping Suggestions",
             "card_hint": "New shopping suggestions are available! View them in the Shopping Suggestions dashboard panel.",
@@ -254,7 +261,7 @@ async def async_suggest_grocery_list_service(call):
                         history_list.append(
                             {"state": state_val, "last_changed": last_changed}
                         )
-                except Exception:
+                except Exception as e:
                     continue
 
         if not history_list:
@@ -318,6 +325,7 @@ async def async_suggest_grocery_list_service(call):
     notification_title = suggestion_strings["title"]
 
     product_entries = []
+    actions = []
     for i, product in enumerate(filtered_products):
         name_text = product["friendly_name"]
         score_text = (
@@ -372,10 +380,45 @@ def async_setup_services(hass) -> None:
     """Set up services for shopping list with grocy integration."""
 
     async def async_cleanup_orphaned_choices() -> None:
-        """Delegate to the coordinator's authoritative cleanup implementation."""
-        coordinator = hass.data.get(DOMAIN, {}).get("instances", {}).get("coordinator")
-        if coordinator:
-            await coordinator.cleanup_orphaned_choices()
+        """Clean up orphaned product choices older than 2 minutes."""
+        if DOMAIN not in hass.data:
+            return
+
+        current_time = time.time()
+        cleanup_threshold = 2 * 60  # 2 minutes in seconds
+
+        product_choices = hass.data.get(DOMAIN, {}).get("product_choices", {})
+        if product_choices:
+            keys_to_remove = []
+            for choice_key, choice_data in product_choices.items():
+                choice_timestamp = choice_data.get("timestamp", 0)
+                if current_time - choice_timestamp > cleanup_threshold:
+                    keys_to_remove.append(choice_key)
+
+            for key in keys_to_remove:
+                del product_choices[key]
+
+        recent_choices = hass.data.get(DOMAIN, {}).get("recent_multiple_choices", {})
+        if recent_choices:
+            keys_to_remove = []
+            for choice_key, choice_data in recent_choices.items():
+                choice_timestamp = choice_data.get("timestamp", 0)
+                if current_time - choice_timestamp > cleanup_threshold:
+                    keys_to_remove.append(choice_key)
+
+            for key in keys_to_remove:
+                del recent_choices[key]
+
+        voice_responses = hass.data.get(DOMAIN, {}).get("voice_responses", {})
+        if voice_responses:
+            keys_to_remove = []
+            for response_key, response_data in voice_responses.items():
+                response_timestamp = response_data.get("timestamp", 0)
+                if current_time - response_timestamp > cleanup_threshold:
+                    keys_to_remove.append(response_key)
+
+            for key in keys_to_remove:
+                del voice_responses[key]
 
     async def async_call_shopping_list_with_grocy_service(service_call) -> None:
         """Call correct shopping list with grocy service."""
@@ -384,6 +427,7 @@ def async_setup_services(hass) -> None:
         data = service_call.data
 
         if service == SERVICE_REFRESH:
+
             await async_cleanup_orphaned_choices()
             await coordinator.request_update()
 
@@ -476,6 +520,7 @@ def async_setup_services(hass) -> None:
             return
 
         try:
+
             instances = hass.data.get(DOMAIN, {}).get("instances", {})
             api = instances.get("api")
 
@@ -518,6 +563,7 @@ def async_setup_services(hass) -> None:
                     ],
                 }
             else:
+
                 response_data = {
                     "found": False,
                     "search_term": search_term,
@@ -586,8 +632,13 @@ def async_setup_services(hass) -> None:
             api.bidirectional_sync_enabled = True
             api.bidirectional_sync_stopped = False
 
+            # Get selection criteria from configuration
+            config_entry = hass.config_entries.async_entries(DOMAIN)[0]
+            config = {**config_entry.data, **(config_entry.options or {})}
+            selection_criteria = config.get(CONF_SELECTION_CRITERIA, {})
+
             result = await api.handle_ha_todo_item_creation(
-                test_product_name, shopping_list_id
+                test_product_name, shopping_list_id, selection_criteria
             )
 
             api.bidirectional_sync_enabled = original_sync_enabled
@@ -718,6 +769,7 @@ def async_setup_services(hass) -> None:
             return
 
         try:
+
             if selected_product_id == "create_new":
                 original_product_name = choice_data.get("original_name", "Unknown")
 
@@ -739,6 +791,7 @@ def async_setup_services(hass) -> None:
                     )
                     return
             else:
+
                 await api.add_product_to_grocy_shopping_list(
                     selected_product_id,
                     choice_data["quantity"],
@@ -785,6 +838,7 @@ def async_setup_services(hass) -> None:
         choices = hass.data.get(DOMAIN, {}).get("product_choices", {})
 
         if not choices:
+
             await async_cleanup_orphaned_choices()
             choices = hass.data.get(DOMAIN, {}).get("product_choices", {})
 
@@ -924,6 +978,7 @@ def async_setup_services(hass) -> None:
             )
 
             if silent:
+
                 voice_response = await get_voice_translation(
                     hass,
                     "invalid_choice",
@@ -1015,7 +1070,9 @@ def async_setup_services(hass) -> None:
             )
 
             if silent:
+
                 if selected_product_id == "create_new":
+
                     voice_response = await get_voice_translation(
                         hass,
                         "product_created",
@@ -1023,6 +1080,7 @@ def async_setup_services(hass) -> None:
                         quantity=quantity,
                     )
                 else:
+
                     voice_response = await get_voice_translation(
                         hass,
                         "product_added",
@@ -1141,6 +1199,7 @@ def async_setup_services(hass) -> None:
 
         choice_data = product_choices[latest_choice_key]
         selected_product_id = choice_data.get("selected_product_id")
+        product_name = choice_data.get("selected_product_name", "Unknown Product")
 
         if not selected_product_id:
             return
@@ -1152,6 +1211,7 @@ def async_setup_services(hass) -> None:
             return
 
         try:
+
             await api.add_product_to_grocy_shopping_list(
                 selected_product_id, quantity, 1, ""
             )
@@ -1234,6 +1294,7 @@ def async_setup_services(hass) -> None:
             )
 
             if todo_entity_id:
+
                 if (
                     todo_entity_id.startswith("todo.")
                     and "shopping_list_with_grocy" in todo_entity_id
@@ -1256,6 +1317,7 @@ def async_setup_services(hass) -> None:
                     )
                     return
             else:
+
                 todo_entities = [
                     entity_id
                     for entity_id in hass.states.async_entity_ids()
@@ -1282,6 +1344,7 @@ def async_setup_services(hass) -> None:
                 todo_entity = todo_entities[0]  # Use the first todo entity
 
             try:
+
                 await hass.services.async_call(
                     "todo",
                     "add_item",
@@ -1308,6 +1371,7 @@ def async_setup_services(hass) -> None:
                 )
 
                 if normalized_name in recent_choices:
+
                     choice_data = recent_choices[normalized_name]
                     choice_key = choice_data.get("choice_key", "")
 
@@ -1328,6 +1392,7 @@ def async_setup_services(hass) -> None:
                             quantity = extracted_quantity
 
                         if matches:
+
                             choice_number_text = await get_voice_translation(
                                 hass, "choice_number"
                             )
@@ -1351,6 +1416,7 @@ def async_setup_services(hass) -> None:
                                 quantity=quantity,
                             )
                     else:
+
                         quantity = 1  # Default quantity
                         clean_product_name = product_name  # Default to original name
                         if api:
@@ -1456,7 +1522,7 @@ def async_setup_services(hass) -> None:
                         },
                     )
 
-            except Exception:
+            except Exception as todo_exception:
                 await asyncio.sleep(1.0)
 
                 instances = hass.data.get(DOMAIN, {}).get("instances", {})
@@ -1518,6 +1584,7 @@ def async_setup_services(hass) -> None:
                                 quantity=quantity,
                             )
                     else:
+
                         quantity = 1  # Default quantity
                         clean_product_name = product_name  # Default to original name
                         if api:
@@ -1547,6 +1614,7 @@ def async_setup_services(hass) -> None:
                         },
                     )
                 else:
+
                     voice_response = await get_voice_translation(
                         hass, "add_error", product_name=product_name
                     )
@@ -1577,6 +1645,7 @@ def async_setup_services(hass) -> None:
                 },
             )
         finally:
+
             if DOMAIN in hass.data and "voice_mode" in hass.data[DOMAIN]:
                 hass.data[DOMAIN]["voice_mode"] = False
 
@@ -1584,15 +1653,7 @@ def async_setup_services(hass) -> None:
         """Add a product via voice with proper feedback for multiple choices."""
         product_name = service_call.data.get("product_name", "")
         shopping_list_id = service_call.data.get("shopping_list_id", 1)
-
-        entries = hass.config_entries.async_entries(DOMAIN)
-        disable_notifications = False
-        if entries:
-            disable_notifications = entries[0].options.get(
-                "disable_notifications", False
-            )
-
-        silent = service_call.data.get("silent", disable_notifications)
+        silent = service_call.data.get("silent", False)
 
         if not product_name:
             return
@@ -1604,8 +1665,13 @@ def async_setup_services(hass) -> None:
             return
 
         try:
+            # Get selection criteria from configuration
+            config_entry = hass.config_entries.async_entries(DOMAIN)[0]
+            config = {**config_entry.data, **(config_entry.options or {})}
+            selection_criteria = config.get(CONF_SELECTION_CRITERIA, {})
+            
             result = await api.handle_ha_todo_item_creation(
-                product_name, shopping_list_id
+                product_name, shopping_list_id, selection_criteria
             )
 
             if result["success"]:
@@ -1903,7 +1969,7 @@ def async_setup_services(hass) -> None:
                     f"  Shopping list: {choice_data.get('shopping_list_id', 'Unknown')}"
                 )
                 matches = choice_data.get("matches", [])
-                choice_list.append("  Available products:")
+                choice_list.append(f"  Available products:")
                 for match in matches[:5]:
                     choice_list.append(
                         f"    • {match.get('name', 'Unknown')} (ID: {match.get('id', 'Unknown')})"
@@ -1934,6 +2000,19 @@ def async_setup_services(hass) -> None:
         product_choices = hass.data.get(DOMAIN, {}).get("product_choices", {})
         recent_choices = hass.data.get(DOMAIN, {}).get("recent_multiple_choices", {})
         voice_responses = hass.data.get(DOMAIN, {}).get("voice_responses", {})
+
+        current_time = time.time()
+        for key, data in product_choices.items():
+            timestamp = data.get("timestamp", 0)
+            age_minutes = (current_time - timestamp) / 60
+
+        for key, data in recent_choices.items():
+            timestamp = data.get("timestamp", 0)
+            age_minutes = (current_time - timestamp) / 60
+
+        for key, data in voice_responses.items():
+            timestamp = data.get("timestamp", 0)
+            age_minutes = (current_time - timestamp) / 60
 
         await async_cleanup_orphaned_choices()
 
