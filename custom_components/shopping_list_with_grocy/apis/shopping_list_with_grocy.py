@@ -358,7 +358,10 @@ class ShoppingListWithGrocyApi:
             qty_in_shopping_lists = 0
 
             for in_shopping_list in data["shopping_list"]:
-                if product_id == int(in_shopping_list["product_id"]):
+                raw_pid = in_shopping_list.get("product_id")
+                if raw_pid is None:
+                    continue
+                if product_id == int(raw_pid):
                     shopping_list_id = int(in_shopping_list["shopping_list_id"])
                     in_shop_list = str(
                         round(int(in_shopping_list["amount"]) / qty_factor)
@@ -952,7 +955,10 @@ class ShoppingListWithGrocyApi:
             existing_entry = None
             if self.final_data and "shopping_list" in self.final_data:
                 for item in self.final_data["shopping_list"]:
-                    if int(item["product_id"]) == int(product_id) and int(
+                    raw_pid = item.get("product_id")
+                    if raw_pid is None:
+                        continue
+                    if int(raw_pid) == int(product_id) and int(
                         item["shopping_list_id"]
                     ) == int(shopping_list_id):
                         existing_entry = item
