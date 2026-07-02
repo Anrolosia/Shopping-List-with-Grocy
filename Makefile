@@ -117,20 +117,27 @@ bump-major:
 # ── Release ──────────────────────────────────────────────────
 
 .PHONY: release
-release: check bump-patch
-	$(eval V := $(_version))
-	@echo "--- Releasing v$(V)"
-	git add $(MANIFEST)
-	git commit -m "chore(release): prepare for v$(V)"
-	git tag -a "v$(V)" -m "Release v$(V)"
+release: check
+	$(eval NEXT := $(shell git-cliff --bumped-version 2>/dev/null | sed 's/^v//'))
+	@if [ -z "$(NEXT)" ]; then \
+		echo "git-cliff could not determine the next version (no new conventional commits since last tag?)"; \
+		exit 1; \
+	fi
+	@python3 -c "import json; m = json.load(open('$(MANIFEST)')); m['version'] = '$(NEXT)'; f = open('$(MANIFEST)', 'w'); json.dump(m, f, indent=2); f.write('\n')"
+	@git-cliff --tag v$(NEXT) -o CHANGELOG.md
+	@echo "--- Releasing v$(NEXT)"
+	git add $(MANIFEST) CHANGELOG.md
+	git commit -m "chore(release): prepare for v$(NEXT)"
+	git tag -a "v$(NEXT)" -m "Release v$(NEXT)"
 	git push && git push --tags
-	@echo "Released v$(V) ✓"
+	@echo "Released v$(NEXT) ✓"
 
 .PHONY: release-minor
 release-minor: check bump-minor
 	$(eval V := $(_version))
+	@git-cliff --tag v$(V) -o CHANGELOG.md
 	@echo "--- Releasing v$(V)"
-	git add $(MANIFEST)
+	git add $(MANIFEST) CHANGELOG.md
 	git commit -m "chore(release): prepare for v$(V)"
 	git tag -a "v$(V)" -m "Release v$(V)"
 	git push && git push --tags
@@ -139,8 +146,9 @@ release-minor: check bump-minor
 .PHONY: release-major
 release-major: check bump-major
 	$(eval V := $(_version))
+	@git-cliff --tag v$(V) -o CHANGELOG.md
 	@echo "--- Releasing v$(V)"
-	git add $(MANIFEST)
+	git add $(MANIFEST) CHANGELOG.md
 	git commit -m "chore(release): prepare for v$(V)"
 	git tag -a "v$(V)" -m "Release v$(V)"
 	git push && git push --tags
