@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.27.0] - 2026-08-31
+
+### ✨ Features
+
+- Added purchase history capture with shopping list and Grocy stock sources
+- Added shopping list episode history store
+
+### 📚 Documentation
+
+- Documented the suggestion engine rebuild and the purchase history dump service
+
+### 🧪 Testing
+
+- Added coverage for the purchase history store and source
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.26.5] - 2026-08-28
 
 ### 🐛 Bug Fixes
