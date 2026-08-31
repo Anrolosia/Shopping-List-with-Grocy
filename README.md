@@ -33,6 +33,17 @@ The integration now includes two major new features:
 - **Responsive Frontend:** Beautiful, mobile-friendly interface with multi-language support
 - **Customizable Algorithm:** Advanced settings to fine-tune the prediction engine
 
+> ℹ️ **The suggestion engine is being rebuilt.** The current version reads product
+> history from Home Assistant's recorder, which is purged after a few days on most
+> installations, so it never sees enough history to predict well. Seasonal detection
+> in particular cannot work on that window. A replacement is in progress: the
+> integration now keeps its own purchase history, in its own storage, which survives
+> recorder purges and accumulates over months.
+>
+> Nothing is being removed. Suggestions keep working as they do today, and they will
+> improve on their own as history accumulates. If your suggestions look random right
+> now, this is why.
+
 **🔄 Bidirectional Sync:**
 - **Two-Way Integration:** Add items through Home Assistant todo lists and they automatically sync to Grocy
 - **Smart Product Matching:** Intelligent search with exact and fuzzy matching (handles accents, case sensitivity)
@@ -121,6 +132,10 @@ This integration provides the following sensors:
 - `suggestions`: List of suggested products with confidence scores
 - `last_update`: Timestamp of when suggestions were last generated
 - `state`: Number of current suggestions available
+
+> ℹ️ Suggestion quality is limited by how much history the engine can see. See the
+> note in the overview: a replacement engine backed by the integration's own purchase
+> history is in progress.
 
 **Frontend Panel:**
 Access the shopping suggestions through the dedicated frontend panel with:
@@ -242,6 +257,9 @@ Analyzes your purchase history and generates personalized shopping suggestions b
 - **Purchase frequency** - How often you buy specific items  
 - **Seasonal trends** - Time-based purchasing patterns
 
+> ℹ️ Results depend on how much history is available. See the note in the overview
+> about the engine rebuild.
+
 #### Reset Shopping Suggestions
 ```yaml
 service: shopping_list_with_grocy.reset_suggestions
@@ -280,6 +298,21 @@ data:
   silent: false  # Optional, default is false
 ```
 Selects a product choice when multiple matches are found. Used internally by voice commands.
+
+#### Dump Purchase History
+```yaml
+service: shopping_list_with_grocy.dump_purchase_history
+data: {}
+```
+Writes a snapshot of the purchase history collected for the suggestion engine to the
+Home Assistant log. Counts are logged at info level, the full journal at debug level.
+
+Enable debug logging first:
+```yaml
+logger:
+  logs:
+    custom_components.shopping_list_with_grocy: debug
+```
 
 #### Set Fallback Voice Response
 ```yaml
