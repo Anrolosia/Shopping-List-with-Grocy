@@ -8,6 +8,7 @@ windows can be crossed deterministically.
 from unittest.mock import MagicMock
 
 import pytest
+import pytest_asyncio
 
 from custom_components.shopping_list_with_grocy import history_store
 from custom_components.shopping_list_with_grocy.history_store import (
@@ -75,7 +76,7 @@ def payload(*products):
     return {str(p["product_id"]): p for p in products}
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def store(monkeypatch):
     """Return a loaded store backed by a fake Store."""
     instance = PurchaseHistoryStore(MagicMock())
@@ -172,6 +173,7 @@ class TestReadObservation:
 # ── Opening ──────────────────────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestOpening:
     async def test_addition_below_dwell_is_discarded(self, store, clock):
         """Added then removed within the debounce window is a fat finger."""
@@ -196,6 +198,7 @@ class TestOpening:
 # ── Editing an open episode ──────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestEditing:
     async def test_quantity_edit_does_not_create_an_episode(self, store, clock):
         """Tweaking quantities while building the list is not a purchase."""
@@ -232,6 +235,7 @@ class TestEditing:
 # ── Closing ──────────────────────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestClosing:
     async def test_removal_below_grace_does_not_close(self, store, clock):
         await open_episode(store, clock)
@@ -270,6 +274,7 @@ class TestClosing:
 # ── Restart and deletion ─────────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestRestartAndDeletion:
     async def test_a_quiet_grocy_is_not_a_gap(self, store, clock):
         """parse_products is skipped entirely while the Grocy database is
@@ -356,6 +361,7 @@ class TestRestartAndDeletion:
 # ── Journal API ──────────────────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestJournal:
     async def test_observation_before_load_is_ignored(self, clock):
         instance = PurchaseHistoryStore(MagicMock())

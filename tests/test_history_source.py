@@ -8,6 +8,7 @@ and transaction types that say nothing about buying habits.
 from unittest.mock import MagicMock
 
 import pytest
+import pytest_asyncio
 
 from custom_components.shopping_list_with_grocy.history_source import (
     DETECTION_MIN_PURCHASES,
@@ -107,7 +108,7 @@ def stock_episode(timestamp, product_id=1):
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def store():
     """Return a loaded store backed by a fake Store."""
     instance = PurchaseHistoryStore(MagicMock())
@@ -250,6 +251,7 @@ class TestResolveSource:
 # ── StockLogSource ───────────────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestStockLogSource:
     async def test_first_sync_imports_and_records_bookkeeping(self, store):
         api = FakeApi(pages=[[row(7, 42), row(9, 43)]])
