@@ -192,3 +192,9 @@ voice_add_product:
         number:
           min: 1
           mode: box
+
+dump_purchase_history:
+  name: Dump purchase history
+  description: >
+    Log a snapshot of the captured shopping list episodes used by the prediction
+    engine. Enable debug logging for the integration to see the full journal.

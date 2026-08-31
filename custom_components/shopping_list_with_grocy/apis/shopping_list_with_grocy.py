@@ -596,6 +596,10 @@ class ShoppingListWithGrocyApi:
             str(product["product_id"]): product for product in parsed_products
         }
 
+        history = getattr(self, "history", None)
+        if history:
+            await history.async_observe(parsed_products_dict)
+
         return parsed_products_dict
 
     async def _kick_off_image_fetches(self, data: dict):

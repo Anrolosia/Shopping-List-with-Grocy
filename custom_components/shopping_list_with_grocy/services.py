@@ -178,6 +178,30 @@ SUGGEST_GROCERY_SCHEMA = vol.Schema(
 )
 
 
+async def async_dump_purchase_history_service(call):
+    """Log a snapshot of the captured purchase episodes for debugging."""
+    hass = call.hass
+
+    history = hass.data.get(DOMAIN, {}).get("instances", {}).get("history")
+
+    if not history:
+        LOGGER.warning("Purchase history store is not initialized")
+        return
+
+    snapshot = history.dump()
+
+    LOGGER.info(
+        "Purchase history: %d episode(s) over %d product(s), %d tracked, "
+        "%d out of stock, %d estimated",
+        snapshot["episode_count"],
+        snapshot["product_count"],
+        snapshot["tracked_count"],
+        snapshot["out_of_stock_count"],
+        snapshot["estimated_count"],
+    )
+    LOGGER.debug("Purchase history snapshot: %s", snapshot)
+
+
 async def async_suggest_grocery_list_service(call):
     """Service to suggest grocery items based on ML analysis."""
     hass = call.hass
@@ -497,6 +521,13 @@ def async_setup_services(hass) -> None:
         DOMAIN,
         "reset_suggestions",
         async_reset_suggestions_service,
+        schema=vol.Schema({}),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "dump_purchase_history",
+        async_dump_purchase_history_service,
         schema=vol.Schema({}),
     )
 
@@ -2007,6 +2038,7 @@ def async_unload_services(hass) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_NOTE)
     hass.services.async_remove(DOMAIN, "suggest_grocery_list")
     hass.services.async_remove(DOMAIN, "reset_suggestions")
+    hass.services.async_remove(DOMAIN, "dump_purchase_history")
     hass.services.async_remove(DOMAIN, "test_bidirectional_sync")
     hass.services.async_remove(DOMAIN, "emergency_stop_sync")
     hass.services.async_remove(DOMAIN, "restart_sync")

@@ -13,6 +13,7 @@ from .apis.shopping_list_with_grocy import ShoppingListWithGrocyApi
 from .const import DOMAIN
 from .coordinator import ShoppingListWithGrocyCoordinator
 from .frontend import async_setup_frontend, async_unload_frontend
+from .history_store import PurchaseHistoryStore
 from .schema import configuration_schema
 from .services import (
     async_remove_restart_repair_issue,
@@ -85,6 +86,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
     session = async_get_clientsession(hass)
     coordinator = ShoppingListWithGrocyCoordinator(hass, session, entry, api)
+    history = PurchaseHistoryStore(hass)
+
+    await history.async_load()
+    api.history = history
+    hass.data[DOMAIN]["instances"]["history"] = history
 
     api.coordinator = coordinator
 
@@ -335,6 +341,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     if unload_ok:
         hass.data.pop(DOMAIN, None)
+        history = hass.data[DOMAIN].get("instances", {}).get("history")
+        if history:
+            await history.async_shutdown()
         async_unload_services(hass)
 
     return unload_ok
