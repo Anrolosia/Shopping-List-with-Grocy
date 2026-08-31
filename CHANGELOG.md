@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.27.1] - 2026-08-31
+
+### 🐛 Bug Fixes
+
+- Marked the purchase history tests for strict asyncio mode
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.27.0] - 2026-08-31
 
 ### ✨ Features
