@@ -49,6 +49,11 @@ class ShoppingListWithGrocyApi:
         self.current_time = datetime.now(timezone.utc)
         self.last_db_changed_time = None
 
+        # Purchase history collaborators, wired by async_setup_entry. They stay
+        # optional so a failure to set them up can never break the sync.
+        self.history = None
+        self.stock_log_source = None
+
         self.bidirectional_sync_enabled = config.get("enable_bidirectional_sync", False)
         self.bidirectional_sync_stopped = False
 
@@ -596,11 +601,37 @@ class ShoppingListWithGrocyApi:
             str(product["product_id"]): product for product in parsed_products
         }
 
-        history = getattr(self, "history", None)
-        if history:
-            await history.async_observe(parsed_products_dict)
+        await self.record_purchase_history(parsed_products_dict)
 
         return parsed_products_dict
+
+    async def record_purchase_history(self, parsed_products: dict) -> None:
+        """Feed the purchase history journal from a fresh product payload.
+
+        The prediction engine needs a history that outlives the recorder, so
+        every fetch advances the shopping list episode state machine and, when
+        due, pulls new purchases from the Grocy stock log.
+
+        Failures are swallowed on purpose: capturing history is a side quest,
+        and it must never take the shopping list sync down with it.
+        """
+        if self.history is None:
+            return
+
+        now = int(self.current_time.timestamp())
+
+        try:
+            await self.history.async_observe(parsed_products)
+        except Exception:
+            LOGGER.debug("Could not record shopping list history", exc_info=True)
+
+        if self.stock_log_source is None:
+            return
+
+        try:
+            await self.stock_log_source.async_sync(now)
+        except Exception:
+            LOGGER.debug("Could not sync the Grocy stock log", exc_info=True)
 
     async def _kick_off_image_fetches(self, data: dict):
         """Schedule image downloads out-of-band, without blocking startup."""

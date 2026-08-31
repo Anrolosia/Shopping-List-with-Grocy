@@ -15,15 +15,20 @@ Stored shape (``.storage/shopping_list_with_grocy.history``)::
     {
         "episodes": [
             {"p": 42, "a": 1735689600, "r": 1736294400, "q": 2,
-             "l": [1], "oos": 0, "est": 0}
+             "l": [1], "oos": 0, "est": 0, "src": 0}
         ],
         "tracking": {"42": {"state": "open", "a": 1735689600, ...}},
+        "sync": {"last_stock_log_id": 0, "stock_log_empty": False},
         "last_observation": 1736294400
     }
 
 Episode keys are kept short because the journal is rewritten in full on every
 save: p=product id, a=added, r=removed, q=quantity, l=shopping list ids,
-oos=out of stock, est=removal timestamp is estimated.
+oos=out of stock, est=removal timestamp is estimated, src=where the episode
+came from.
+
+Both sources are journalled side by side. The prediction engine reads one of
+them at a time, so a user can switch modes without losing history.
 """
 
 import logging
@@ -50,10 +55,15 @@ MIN_OPEN_DWELL = 15 * 60
 # followed by an addition.
 CLOSE_GRACE = 5 * 60
 
-# When the gap between two observations is larger than this, Home Assistant was
-# most likely down. Removals detected on the first observation after such a gap
-# get their timestamp flagged as estimated so they can be excluded from dwell
-# statistics.
+# Home Assistant restarts are the only thing that can hide a removal, and they
+# only ever show up on the first observation after a load. A gap during a live
+# session just means Grocy was quiet: parse_products is skipped entirely when
+# the Grocy database has not changed, so hours can pass between two
+# observations on a perfectly healthy instance.
+#
+# Removals detected on that first post-load observation carry a timestamp that
+# is only an upper bound, so they are flagged as estimated and can be excluded
+# from dwell statistics.
 STALE_OBSERVATION_GAP = 60 * 60
 
 SAVE_DELAY = 60
@@ -63,6 +73,12 @@ SAVE_DELAY = 60
 # from the removal instead of the addition, because the product sat on the list
 # waiting for restock rather than waiting to be bought.
 OUT_OF_STOCK_NOTE = "out_of_stock"
+
+# Where an episode came from. Shopping list episodes span an interval, Grocy
+# stock episodes are point events where the addition and removal timestamps are
+# the same.
+SOURCE_SHOPPING_LIST = 0
+SOURCE_GROCY_STOCK = 1
 
 STATE_ABSENT = "absent"
 STATE_PENDING_OPEN = "pending_open"
@@ -83,6 +99,21 @@ def _to_number(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def normalize_episode(episode: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill in the optional keys of an episode.
+
+    Episodes reach the journal from three places: the state machine, a Grocy
+    stock backfill, and older versions of the file on disk. Normalising on the
+    way in means every reader can index the keys directly.
+    """
+    episode.setdefault("q", 0)
+    episode.setdefault("l", [])
+    episode.setdefault("oos", 0)
+    episode.setdefault("est", 0)
+    episode.setdefault("src", SOURCE_SHOPPING_LIST)
+    return episode
 
 
 def _is_out_of_stock(note: Any) -> bool:
@@ -140,8 +171,10 @@ class PurchaseHistoryStore:
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._episodes: List[Dict[str, Any]] = []
         self._tracking: Dict[str, Dict[str, Any]] = {}
+        self._sync: Dict[str, Any] = {}
         self._last_observation: Optional[int] = None
         self._loaded = False
+        self._resumed = False
 
     async def async_load(self) -> None:
         """Load the journal from disk."""
@@ -150,9 +183,16 @@ class PurchaseHistoryStore:
         if data:
             self._episodes = data.get("episodes", []) or []
             self._tracking = data.get("tracking", {}) or {}
+            self._sync = data.get("sync", {}) or {}
             self._last_observation = data.get("last_observation")
 
+            # Episodes journalled by older versions predate the optional
+            # keys, and all of them came from the shopping list.
+            for episode in self._episodes:
+                normalize_episode(episode)
+
         self._loaded = True
+        self._resumed = False
 
         LOGGER.debug(
             "Purchase history loaded: %d episode(s), %d tracked product(s)",
@@ -165,6 +205,7 @@ class PurchaseHistoryStore:
         return {
             "episodes": self._episodes,
             "tracking": self._tracking,
+            "sync": self._sync,
             "last_observation": self._last_observation,
         }
 
@@ -185,15 +226,19 @@ class PurchaseHistoryStore:
             return
 
         now = _now()
+
+        # Only the first observation after a load can have missed anything.
         stale = (
-            self._last_observation is not None
+            not self._resumed
+            and self._last_observation is not None
             and now - self._last_observation > STALE_OBSERVATION_GAP
         )
+        self._resumed = True
 
         if stale:
             LOGGER.debug(
-                "Gap of %d s since last observation, removals will be flagged "
-                "as estimated",
+                "Resuming after a gap of %d s, removals detected now will be "
+                "flagged as estimated",
                 now - self._last_observation,
             )
 
@@ -323,6 +368,7 @@ class PurchaseHistoryStore:
             "l": entry.get("l", []),
             "oos": int(entry.get("oos", 0)),
             "est": int(entry.get("est", 0)),
+            "src": SOURCE_SHOPPING_LIST,
         }
 
         self._episodes.append(episode)
@@ -352,12 +398,40 @@ class PurchaseHistoryStore:
 
         return bool(gone)
 
-    def get_episodes(self, product_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Return closed episodes, optionally for a single product."""
-        if product_id is None:
-            return list(self._episodes)
+    def add_episodes(self, episodes: List[Dict[str, Any]]) -> None:
+        """Append externally built episodes, such as a Grocy stock backfill."""
+        if not episodes:
+            return
 
-        return [ep for ep in self._episodes if ep["p"] == int(product_id)]
+        self._episodes.extend(normalize_episode(episode) for episode in episodes)
+        self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+
+    def get_sync_state(self) -> Dict[str, Any]:
+        """Return the bookkeeping used by external history sources."""
+        return dict(self._sync)
+
+    def set_sync_state(self, **values: Any) -> None:
+        """Merge values into the external source bookkeeping."""
+        self._sync.update(values)
+        self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+
+    def get_episodes(
+        self,
+        product_id: Optional[int] = None,
+        source: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return closed episodes, optionally filtered by product and source."""
+        episodes = self._episodes
+
+        if source is not None:
+            episodes = [
+                ep for ep in episodes if ep.get("src", SOURCE_SHOPPING_LIST) == source
+            ]
+
+        if product_id is not None:
+            episodes = [ep for ep in episodes if ep["p"] == int(product_id)]
+
+        return list(episodes)
 
     def get_open_episodes(self) -> Dict[str, Dict[str, Any]]:
         """Return the products currently being tracked."""
@@ -366,10 +440,15 @@ class PurchaseHistoryStore:
     def dump(self) -> Dict[str, Any]:
         """Return a debug view of the journal."""
         products = {ep["p"] for ep in self._episodes}
+        from_list = self.get_episodes(source=SOURCE_SHOPPING_LIST)
+        from_stock = self.get_episodes(source=SOURCE_GROCY_STOCK)
 
         return {
             "episode_count": len(self._episodes),
             "product_count": len(products),
+            "shopping_list_count": len(from_list),
+            "grocy_stock_count": len(from_stock),
+            "sync": dict(self._sync),
             "tracked_count": len(self._tracking),
             "out_of_stock_count": sum(1 for ep in self._episodes if ep["oos"]),
             "estimated_count": sum(1 for ep in self._episodes if ep["est"]),
