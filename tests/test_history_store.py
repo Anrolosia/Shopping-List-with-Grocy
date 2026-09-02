@@ -55,13 +55,14 @@ class Clock:
         self.now += seconds
 
 
-def product(product_id, quantity, lists=None, note=""):
+def product(product_id, quantity, lists=None, note="", done=0):
     """Build a parsed product payload the way parse_products does."""
     attributes = {"product_id": product_id}
 
     for list_id in lists or []:
         attributes[f"list_{list_id}_qty"] = quantity
         attributes[f"list_{list_id}_note"] = note
+        attributes[f"list_{list_id}_done"] = done
 
     return {
         "name": f"Product {product_id}",
@@ -139,7 +140,9 @@ class TestReadObservation:
     def test_collects_lists_with_quantity(self):
         result = read_observation(product(1, 2, [1, 3]))
         assert result["lists"] == [1, 3]
-        assert result["quantity"] == 2
+        # Two outstanding entries of two, the same total parse_products puts in
+        # qty_in_shopping_lists.
+        assert result["quantity"] == 4
 
     def test_ignores_lists_with_zero_quantity(self):
         parsed = product(1, 2, [1])
@@ -150,6 +153,31 @@ class TestReadObservation:
         """A stale aggregate must not keep an episode open forever."""
         parsed = product(1, 4, [])
         assert read_observation(parsed)["quantity"] == 0
+
+    def test_ticked_off_entries_are_not_outstanding(self):
+        """Ticking a product off marks the Grocy row done, it does not delete
+        it, and that tick is the purchase."""
+        assert read_observation(product(1, 2, [1], done=1))["quantity"] == 0
+
+    def test_a_missing_done_flag_means_outstanding(self):
+        parsed = product(1, 2, [1])
+        del parsed["attributes"]["list_1_done"]
+        assert read_observation(parsed)["quantity"] == 2
+
+    def test_done_as_a_string_is_understood(self):
+        assert read_observation(product(1, 2, [1], done="1"))["quantity"] == 0
+
+    def test_quantity_counts_outstanding_lists_only(self):
+        parsed = product(1, 2, [1])
+        parsed["attributes"]["list_4_qty"] = 5
+        parsed["attributes"]["list_4_done"] = 1
+        result = read_observation(parsed)
+        assert result["quantity"] == 2
+        assert result["lists"] == [1]
+
+    def test_a_ticked_off_entry_cannot_be_out_of_stock(self):
+        parsed = product(1, 1, [1], "out_of_stock", done=1)
+        assert not read_observation(parsed)["out_of_stock"]
 
     def test_detects_out_of_stock_note(self):
         assert read_observation(product(1, 1, [1], "out_of_stock"))["out_of_stock"]
@@ -258,6 +286,47 @@ class TestClosing:
         assert episodes[0]["r"] == removed
         assert episodes[0]["src"] == SOURCE_SHOPPING_LIST
         assert store.get_open_episodes() == {}
+
+    async def test_ticking_a_product_off_closes_the_episode(self, store, clock):
+        """The real shopping workflow: items are ticked off in the shop."""
+        added = clock.now
+        await open_episode(store, clock)
+        clock.advance(12 * 3600)
+        bought = clock.now
+
+        await store.async_observe(payload(product(1, 2, [1], done=1)))
+        clock.advance(CLOSE_GRACE + 1)
+        await store.async_observe(payload(product(1, 2, [1], done=1)))
+
+        episodes = store.get_episodes()
+        assert len(episodes) == 1
+        assert episodes[0]["a"] == added
+        assert episodes[0]["r"] == bought
+        assert episodes[0]["q"] == 2
+
+    async def test_unticking_within_the_grace_window_reopens(self, store, clock):
+        await open_episode(store, clock)
+        clock.advance(60)
+        await store.async_observe(payload(product(1, 2, [1], done=1)))
+        clock.advance(60)
+        await store.async_observe(payload(product(1, 2, [1], done=0)))
+
+        assert store.get_episodes() == []
+        assert store.get_open_episodes()["1"]["state"] == "open"
+
+    async def test_clearing_the_list_after_ticking_off_is_a_no_op(self, store, clock):
+        """The row is deleted later, but the episode already closed."""
+        await open_episode(store, clock)
+        clock.advance(3600)
+        await store.async_observe(payload(product(1, 2, [1], done=1)))
+        clock.advance(CLOSE_GRACE + 1)
+        await store.async_observe(payload(product(1, 2, [1], done=1)))
+        clock.advance(86400)
+        await store.async_observe(payload(product(1, 0)))
+        clock.advance(CLOSE_GRACE + 1)
+        await store.async_observe(payload(product(1, 0)))
+
+        assert len(store.get_episodes()) == 1
 
     async def test_two_cycles_produce_two_episodes(self, store, clock):
         await open_episode(store, clock)

@@ -541,6 +541,11 @@ class ShoppingListWithGrocyApi:
                         "shop_list_id": in_shopping_list["id"],
                         "qty": purchase_qty,
                         "note": in_shopping_list.get("note", ""),
+                        # Ticking a product off a to-do list marks the Grocy
+                        # row as done, it does not delete it. That tick is the
+                        # moment the product was actually bought, so the
+                        # purchase history needs to see it.
+                        "done": int(in_shopping_list.get("done", 0) or 0),
                     }
                     qty_in_shopping_lists += purchase_qty
 
@@ -579,6 +584,7 @@ class ShoppingListWithGrocyApi:
                         f"{shop_list}_qty": details["qty"],
                         f"{shop_list}_shop_list_id": int(details["shop_list_id"]),
                         f"{shop_list}_note": details["note"],
+                        f"{shop_list}_done": details["done"],
                     }
                 )
 

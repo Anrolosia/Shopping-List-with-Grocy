@@ -116,6 +116,21 @@ def normalize_episode(episode: Dict[str, Any]) -> Dict[str, Any]:
     return episode
 
 
+def _is_done(value: Any) -> bool:
+    """Return True when a shopping list entry has been ticked off.
+
+    Older payloads have no done attribute at all, and a missing flag means the
+    entry is still outstanding.
+    """
+    if value is None:
+        return False
+
+    try:
+        return int(value) != 0
+    except (TypeError, ValueError):
+        return bool(value)
+
+
 def _is_out_of_stock(note: Any) -> bool:
     """Return True when a shopping list note carries the out of stock marker."""
     if not isinstance(note, str):
@@ -126,34 +141,45 @@ def _is_out_of_stock(note: Any) -> bool:
 def read_observation(product: Dict[str, Any]) -> Dict[str, Any]:
     """Reduce one parsed product into the fields the journal cares about.
 
-    Returns the total quantity, the shopping lists the product currently sits
-    on, and whether any of those lists flagged it as out of stock.
+    Returns the outstanding quantity, the shopping lists the product is still
+    waiting on, and whether any of those lists flagged it as out of stock.
+
+    Entries already ticked off do not count as outstanding. Ticking a product
+    off a to-do list marks the Grocy row done rather than deleting it, and that
+    tick happens in the shop, at the moment of the purchase. It is a better
+    close signal than the row eventually disappearing, which can happen days
+    later when the list is cleared.
+
+    The per list attributes are the authoritative view rather than
+    ``qty_in_shopping_lists``, which counts ticked entries and can also carry a
+    stale aggregate after every entry is gone. Closing on the aggregate would
+    keep episodes open forever.
     """
     attributes = product.get("attributes") or {}
 
     lists: List[int] = []
+    quantity = 0.0
     out_of_stock = False
 
     for key, value in attributes.items():
         match = _LIST_QTY_RE.match(key)
         if not match:
             continue
-        if _to_number(value) <= 0:
+
+        entry_quantity = _to_number(value)
+        if entry_quantity <= 0:
             continue
 
         list_id = int(match.group(1))
+
+        if _is_done(attributes.get(f"list_{list_id}_done")):
+            continue
+
         lists.append(list_id)
+        quantity += entry_quantity
 
         if _is_out_of_stock(attributes.get(f"list_{list_id}_note")):
             out_of_stock = True
-
-    quantity = _to_number(product.get("qty_in_shopping_lists"))
-
-    # The per list attributes are the authoritative view. A product can carry a
-    # stale aggregate while every list entry is gone, and closing on the
-    # aggregate alone would keep the episode open forever.
-    if not lists:
-        quantity = 0.0
 
     return {
         "quantity": quantity,
