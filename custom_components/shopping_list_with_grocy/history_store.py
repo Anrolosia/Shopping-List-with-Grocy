@@ -80,6 +80,11 @@ OUT_OF_STOCK_NOTE = "out_of_stock"
 SOURCE_SHOPPING_LIST = 0
 SOURCE_GROCY_STOCK = 1
 
+# The state machine is driven by Grocy database changes, not by the clock:
+# parse_products is skipped entirely while Grocy is unchanged, so hours or days
+# can pass between two observations. Every window below is therefore checked
+# against elapsed time on the next observation, never assumed to have been
+# checked promptly.
 STATE_ABSENT = "absent"
 STATE_PENDING_OPEN = "pending_open"
 STATE_OPEN = "open"
@@ -310,6 +315,15 @@ class PurchaseHistoryStore:
 
         if state == STATE_PENDING_OPEN:
             if not present:
+                if now - entry["a"] >= MIN_OPEN_DWELL:
+                    # It outlived the debounce window somewhere inside the gap
+                    # between two observations, so it was a real addition that
+                    # has since been bought. Only the removal time is unknown.
+                    entry["r"] = now
+                    entry["est"] = 1
+                    self._close(product_id, entry)
+                    return True
+
                 # Added and removed within the debounce window: a fat finger,
                 # not a shopping intent.
                 self._tracking.pop(product_id, None)
@@ -337,6 +351,20 @@ class PurchaseHistoryStore:
 
         if state == STATE_PENDING_CLOSE:
             if present:
+                if now - entry["r"] >= CLOSE_GRACE:
+                    # The grace window expired inside the gap between two
+                    # observations, so the episode really did end back then.
+                    # What is on the list now is a new one.
+                    self._close(product_id, entry)
+                    self._tracking[product_id] = {
+                        "state": STATE_PENDING_OPEN,
+                        "a": now,
+                        "q": observation["quantity"],
+                        "l": observation["lists"],
+                        "oos": int(observation["out_of_stock"]),
+                    }
+                    return True
+
                 # Back on a list before the grace window expired. This is a
                 # move between shopping lists or a quick undo, so the episode
                 # never really ended.
