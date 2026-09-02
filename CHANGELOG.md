@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.27.2] - 2026-09-02
+
+### 🐛 Bug Fixes
+
+- Closed purchase episodes when products are ticked off a shopping list
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.27.1] - 2026-08-31
 
 ### 🐛 Bug Fixes
