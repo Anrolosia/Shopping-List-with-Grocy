@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.27.3] - 2026-09-02
+
+### 🐛 Bug Fixes
+
+- Evaluated the episode debounce windows against elapsed time
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.27.2] - 2026-09-02
 
 ### 🐛 Bug Fixes
