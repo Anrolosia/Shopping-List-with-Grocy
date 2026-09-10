@@ -546,6 +546,11 @@ class ShoppingListWithGrocyApi:
                         # moment the product was actually bought, so the
                         # purchase history needs to see it.
                         "done": int(in_shopping_list.get("done", 0) or 0),
+                        # When the product was put on the list, as opposed to
+                        # when this integration first noticed. Updates pause
+                        # while the user edits, so a whole list can be built
+                        # without a single observation running.
+                        "created": in_shopping_list.get("row_created_timestamp"),
                     }
                     qty_in_shopping_lists += purchase_qty
 
@@ -585,6 +590,7 @@ class ShoppingListWithGrocyApi:
                         f"{shop_list}_shop_list_id": int(details["shop_list_id"]),
                         f"{shop_list}_note": details["note"],
                         f"{shop_list}_done": details["done"],
+                        f"{shop_list}_created": details["created"],
                     }
                 )
 

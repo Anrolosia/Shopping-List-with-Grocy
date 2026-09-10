@@ -5,6 +5,7 @@ swapped for a fake, and the clock is driven manually so that the debounce
 windows can be crossed deterministically.
 """
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,6 +21,7 @@ from custom_components.shopping_list_with_grocy.history_store import (
     PurchaseHistoryStore,
     normalize_episode,
     read_observation,
+    resolve_added_at,
 )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,7 +57,12 @@ class Clock:
         self.now += seconds
 
 
-def product(product_id, quantity, lists=None, note="", done=0):
+def grocy_time(timestamp):
+    """Render an epoch the way Grocy writes row_created_timestamp."""
+    return datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def product(product_id, quantity, lists=None, note="", done=0, created=None):
     """Build a parsed product payload the way parse_products does."""
     attributes = {"product_id": product_id}
 
@@ -63,6 +70,7 @@ def product(product_id, quantity, lists=None, note="", done=0):
         attributes[f"list_{list_id}_qty"] = quantity
         attributes[f"list_{list_id}_note"] = note
         attributes[f"list_{list_id}_done"] = done
+        attributes[f"list_{list_id}_created"] = grocy_time(created) if created else None
 
     return {
         "name": f"Product {product_id}",
@@ -179,6 +187,29 @@ class TestReadObservation:
         parsed = product(1, 1, [1], "out_of_stock", done=1)
         assert not read_observation(parsed)["out_of_stock"]
 
+    def test_reads_the_row_creation_time(self):
+        parsed = product(1, 1, [1], created=1788986400)
+        assert read_observation(parsed)["created"] == 1788986400
+
+    def test_takes_the_earliest_creation_across_lists(self):
+        parsed = product(1, 1, [1], created=1788986400)
+        parsed["attributes"]["list_2_qty"] = 1
+        parsed["attributes"]["list_2_done"] = 0
+        parsed["attributes"]["list_2_created"] = grocy_time(1788900000)
+
+        assert read_observation(parsed)["created"] == 1788900000
+
+    def test_an_unparseable_creation_time_is_dropped(self):
+        parsed = product(1, 1, [1])
+        parsed["attributes"]["list_1_created"] = "not a date"
+
+        assert read_observation(parsed)["created"] is None
+
+    def test_a_ticked_off_row_contributes_no_creation_time(self):
+        assert (
+            read_observation(product(1, 1, [1], done=1, created=1))["created"] is None
+        )
+
     def test_detects_out_of_stock_note(self):
         assert read_observation(product(1, 1, [1], "out_of_stock"))["out_of_stock"]
 
@@ -190,12 +221,38 @@ class TestReadObservation:
 
     def test_missing_attributes(self):
         result = read_observation({"qty_in_shopping_lists": 3})
-        assert result == {"quantity": 0, "lists": [], "out_of_stock": False}
+        assert result == {
+            "quantity": 0,
+            "lists": [],
+            "out_of_stock": False,
+            "created": None,
+        }
 
     def test_unparseable_quantity(self):
         parsed = product(1, 1, [1])
         parsed["attributes"]["list_1_qty"] = "nope"
         assert read_observation(parsed)["lists"] == []
+
+
+class TestResolveAddedAt:
+    def test_a_row_created_since_the_last_look_wins(self):
+        """A whole list can be built while updates are paused, and every
+        product would otherwise share one timestamp."""
+        assert resolve_added_at({"created": 500}, 1000, 100) == 500
+
+    def test_a_row_older_than_the_last_look_is_ignored(self):
+        """Re-adding a product updates its existing row in place, so the
+        creation time can be a week old."""
+        assert resolve_added_at({"created": 50}, 1000, 100) == 1000
+
+    def test_a_row_from_the_future_is_ignored(self):
+        assert resolve_added_at({"created": 5000}, 1000, 100) == 1000
+
+    def test_no_creation_time_falls_back_to_now(self):
+        assert resolve_added_at({"created": None}, 1000, 100) == 1000
+
+    def test_the_first_observation_ever_falls_back_to_now(self):
+        assert resolve_added_at({"created": 500}, 1000, None) == 1000
 
 
 # ── Opening ──────────────────────────────────────────────────────────────────
@@ -211,6 +268,54 @@ class TestOpening:
 
         assert store.get_episodes() == []
         assert store.get_open_episodes() == {}
+
+    async def test_a_list_built_while_paused_keeps_its_own_timestamps(
+        self, store, clock
+    ):
+        """The pause switch blocks the whole fetch, so a list built over
+        several minutes arrives in a single observation."""
+        await store.async_observe(payload(product(9, 1, [1])))
+        start = clock.now
+        clock.advance(600)
+
+        first = start + 60
+        second = start + 300
+        await store.async_observe(
+            payload(
+                product(1, 1, [1], created=first),
+                product(2, 1, [1], created=second),
+            )
+        )
+
+        tracking = store.get_open_episodes()
+        assert tracking["1"]["a"] == first
+        assert tracking["2"]["a"] == second
+
+    async def test_a_recycled_row_does_not_backdate_the_episode(self, store, clock):
+        """Adding a product whose ticked-off row still exists updates that row
+        in place, keeping a creation time from the previous shop."""
+        await store.async_observe(payload(product(9, 1, [1])))
+        stale = clock.now - 7 * 86400
+        clock.advance(600)
+        now = clock.now
+
+        await store.async_observe(payload(product(1, 1, [1], created=stale)))
+
+        assert store.get_open_episodes()["1"]["a"] == now
+
+    async def test_addition_gone_after_a_long_gap_still_counts(self, store, clock):
+        """Observations only happen when Grocy changes, so a product can be
+        added and bought entirely between two of them. That is a purchase, not
+        a fat finger."""
+        added = clock.now
+        await store.async_observe(payload(product(1, 2, [1])))
+        clock.advance(3 * 86400)
+        await store.async_observe(payload(product(1, 0)))
+
+        episodes = store.get_episodes()
+        assert len(episodes) == 1
+        assert episodes[0]["a"] == added
+        assert episodes[0]["est"] == 1
 
     async def test_addition_opens_after_dwell(self, store, clock):
         await open_episode(store, clock)
@@ -327,6 +432,26 @@ class TestClosing:
         await store.async_observe(payload(product(1, 0)))
 
         assert len(store.get_episodes()) == 1
+
+    async def test_a_return_after_the_grace_window_starts_a_new_episode(
+        self, store, clock
+    ):
+        """The grace window can expire between two observations. The earlier
+        purchase must not be swallowed by the next one."""
+        first_added = clock.now
+        await open_episode(store, clock)
+        clock.advance(3600)
+        bought = clock.now
+        await store.async_observe(payload(product(1, 2, [1], done=1)))
+
+        clock.advance(4 * 86400)
+        await store.async_observe(payload(product(1, 2, [1])))
+
+        episodes = store.get_episodes()
+        assert len(episodes) == 1
+        assert episodes[0]["a"] == first_added
+        assert episodes[0]["r"] == bought
+        assert store.get_open_episodes()["1"]["state"] == "pending_open"
 
     async def test_two_cycles_produce_two_episodes(self, store, clock):
         await open_episode(store, clock)

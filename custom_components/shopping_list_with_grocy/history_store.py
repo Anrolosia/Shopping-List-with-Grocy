@@ -33,6 +33,7 @@ them at a time, so a user can switch modes without losing history.
 
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
@@ -121,6 +122,29 @@ def normalize_episode(episode: Dict[str, Any]) -> Dict[str, Any]:
     return episode
 
 
+def _parse_created(value: Any) -> Optional[int]:
+    """Parse a Grocy row creation timestamp into a UTC epoch.
+
+    Grocy writes naive timestamps in the server's own timezone. They are read
+    as UTC here, which is the same assumption the Grocy stock log source makes.
+    A few hours of skew never matters: the value is only used when it falls
+    inside the window since the last observation, and it is discarded
+    otherwise.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            parsed = datetime.strptime(value.strip(), fmt)
+        except ValueError:
+            continue
+
+        return int(parsed.replace(tzinfo=timezone.utc).timestamp())
+
+    return None
+
+
 def _is_done(value: Any) -> bool:
     """Return True when a shopping list entry has been ticked off.
 
@@ -165,6 +189,7 @@ def read_observation(product: Dict[str, Any]) -> Dict[str, Any]:
     lists: List[int] = []
     quantity = 0.0
     out_of_stock = False
+    created: Optional[int] = None
 
     for key, value in attributes.items():
         match = _LIST_QTY_RE.match(key)
@@ -183,6 +208,10 @@ def read_observation(product: Dict[str, Any]) -> Dict[str, Any]:
         lists.append(list_id)
         quantity += entry_quantity
 
+        entry_created = _parse_created(attributes.get(f"list_{list_id}_created"))
+        if entry_created is not None and (created is None or entry_created < created):
+            created = entry_created
+
         if _is_out_of_stock(attributes.get(f"list_{list_id}_note")):
             out_of_stock = True
 
@@ -190,7 +219,34 @@ def read_observation(product: Dict[str, Any]) -> Dict[str, Any]:
         "quantity": quantity,
         "lists": sorted(lists),
         "out_of_stock": out_of_stock,
+        "created": created,
     }
+
+
+def resolve_added_at(
+    observation: Dict[str, Any], now: int, last_observation: Optional[int]
+) -> int:
+    """Decide when a product was really put on the list.
+
+    Observations do not run while the user edits: the pause switch blocks the
+    whole fetch, and a fetch is skipped anyway while the Grocy database is
+    unchanged. A list built over several minutes therefore lands in one
+    observation, and every product would otherwise share the same timestamp.
+
+    Grocy's own row creation time fixes that, but only when the row is new.
+    Adding a product whose row still exists from a previous shop updates that
+    row in place, keeping its original creation time, so anything older than
+    the last observation is a row already seen and is ignored.
+    """
+    created = observation.get("created")
+
+    if created is None or last_observation is None:
+        return now
+
+    if last_observation < created <= now:
+        return created
+
+    return now
 
 
 class PurchaseHistoryStore:
@@ -306,7 +362,7 @@ class PurchaseHistoryStore:
             # gets promoted.
             self._tracking[product_id] = {
                 "state": STATE_PENDING_OPEN,
-                "a": now,
+                "a": resolve_added_at(observation, now, self._last_observation),
                 "q": observation["quantity"],
                 "l": observation["lists"],
                 "oos": int(observation["out_of_stock"]),
@@ -358,7 +414,7 @@ class PurchaseHistoryStore:
                     self._close(product_id, entry)
                     self._tracking[product_id] = {
                         "state": STATE_PENDING_OPEN,
-                        "a": now,
+                        "a": resolve_added_at(observation, now, self._last_observation),
                         "q": observation["quantity"],
                         "l": observation["lists"],
                         "oos": int(observation["out_of_stock"]),
