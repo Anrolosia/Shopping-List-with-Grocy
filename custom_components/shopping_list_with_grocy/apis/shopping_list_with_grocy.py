@@ -1179,6 +1179,11 @@ class ShoppingListWithGrocyApi:
                     "shopping_list_id": int(shopping_list_id),
                     "amount": new_amount,
                     "note": note or existing_entry.get("note", ""),
+                    # The row may still be ticked off from a previous shop:
+                    # this lookup matches on product and list only. Adding a
+                    # product means it is wanted again, so the row has to come
+                    # back as outstanding instead of arriving pre-checked.
+                    "done": 0,
                 }
 
                 await self.request(
