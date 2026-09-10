@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.28.0] - 2026-09-10
+
+### ✨ Features
+
+- Used the Grocy row creation time as the episode addition time
+
+### 🐛 Bug Fixes
+
+- Reset the done flag when re-adding a product to a shopping list
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.27.3] - 2026-09-02
 
 ### 🐛 Bug Fixes
