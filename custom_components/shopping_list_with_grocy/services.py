@@ -11,6 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_registry import async_get
 from homeassistant.helpers.issue_registry import async_create_issue, async_delete_issue
+from homeassistant.util import dt as dt_util
 
 from .analysis_const import CONF_ANALYSIS_SETTINGS
 from .const import (
@@ -31,7 +32,9 @@ from .frontend_translations import (
     get_notification_strings,
     get_voice_response,
 )
+from .history_store import SOURCE_SHOPPING_LIST
 from .ml_engine import PurchasePredictionEngine
+from .prediction_engine import analyze, suggest
 
 LOGGER = logging.getLogger(__name__)
 
@@ -176,6 +179,105 @@ SUGGEST_GROCERY_SCHEMA = vol.Schema(
         vol.Optional("disable_notification", default=False): cv.boolean,
     }
 )
+
+
+async def async_analyze_purchase_history_service(call):
+    """Log what the prediction engine can currently say about the journal."""
+    hass = call.hass
+
+    history = hass.data.get(DOMAIN, {}).get("instances", {}).get("history")
+
+    if not history:
+        LOGGER.warning("Purchase history store is not initialized")
+        return
+
+    api = hass.data.get(DOMAIN, {}).get("instances", {}).get("api")
+
+    analysis = analyze(
+        history.get_episodes(source=SOURCE_SHOPPING_LIST),
+        int(dt_util.utcnow().timestamp()),
+        _product_groups(api),
+        dt_util.DEFAULT_TIME_ZONE,
+    )
+
+    coverage = analysis["coverage"]
+    household = analysis["household"]
+    suggestions = suggest(analysis)
+
+    LOGGER.info(
+        "Prediction coverage: %d product(s) over %d episode(s), %d repeated, "
+        "%d interval(s) available",
+        coverage["products"],
+        coverage["episodes"],
+        coverage["products_with_2_episodes"],
+        coverage["total_intervals"],
+    )
+
+    if household["dwell_median_days"] is not None:
+        LOGGER.info(
+            "Household: dwell median %.1f h over %d episode(s), list day %s, "
+            "shopping day %s",
+            household["dwell_median_days"] * 24,
+            household["dwell_sample_size"],
+            _weekday_name(household["list_weekday"]),
+            _weekday_name(household["shop_weekday"]),
+        )
+
+    LOGGER.info("Prediction produced %d suggestion(s)", len(suggestions))
+    LOGGER.debug("Prediction analysis: %s", analysis)
+    LOGGER.debug("Prediction suggestions: %s", suggestions)
+
+
+def _product_groups(api):
+    """Map product ids to their Grocy product group.
+
+    The group is the middle level of the prediction engine's shrinkage, so a
+    product with little history of its own can borrow from its peers.
+
+    Grocy's raw payload lives in ``final_data["products"]`` as a list and only
+    carries ``product_group_id``. The parsed payload under
+    ``homeassistant_products`` is keyed by product id and already has the group
+    name resolved, so that is the one to read.
+    """
+    if not api:
+        return {}
+
+    final_data = getattr(api, "final_data", None) or {}
+    parsed = final_data.get("homeassistant_products") or {}
+
+    if not isinstance(parsed, dict):
+        return {}
+
+    groups = {}
+
+    for product in parsed.values():
+        group = (product.get("attributes") or {}).get("group")
+
+        if not group:
+            continue
+
+        try:
+            groups[int(product["product_id"])] = group
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return groups
+
+
+def _weekday_name(index):
+    """Return an English weekday name, or unknown when there is no data."""
+    if index is None:
+        return "unknown"
+
+    return (
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    )[index]
 
 
 async def async_dump_purchase_history_service(call):
@@ -528,6 +630,13 @@ def async_setup_services(hass) -> None:
         DOMAIN,
         "dump_purchase_history",
         async_dump_purchase_history_service,
+        schema=vol.Schema({}),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "analyze_purchase_history",
+        async_analyze_purchase_history_service,
         schema=vol.Schema({}),
     )
 
@@ -2039,6 +2148,7 @@ def async_unload_services(hass) -> None:
     hass.services.async_remove(DOMAIN, "suggest_grocery_list")
     hass.services.async_remove(DOMAIN, "reset_suggestions")
     hass.services.async_remove(DOMAIN, "dump_purchase_history")
+    hass.services.async_remove(DOMAIN, "analyze_purchase_history")
     hass.services.async_remove(DOMAIN, "test_bidirectional_sync")
     hass.services.async_remove(DOMAIN, "emergency_stop_sync")
     hass.services.async_remove(DOMAIN, "restart_sync")
