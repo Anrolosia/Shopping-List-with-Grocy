@@ -384,6 +384,27 @@ class TestAnalyze:
         assert intervals[1]["basis"] == "removal"
         assert intervals[1]["days"] == pytest.approx(20 - 14, abs=0.01)
 
+    def test_a_forgotten_tick_does_not_bridge_two_intervals(self):
+        """Dropping the forgotten episode must not join its neighbours into one
+        span: 0 to 7 is observed, 7 to 14 is not."""
+        forgotten = [episode(1, 0), episode(1, 7, dwell_hours=200), episode(1, 14)]
+
+        intervals = product_intervals(forgotten, 15 / 24)
+
+        assert [round(item["days"]) for item in intervals] == [7]
+
+    def test_one_usable_interval_is_not_enough_to_suggest(self):
+        """Three episodes with one forgotten tick leave a single interval."""
+        journal = every(2, 1, 20) + [
+            episode(1, 0),
+            episode(1, 7, dwell_hours=200),
+            episode(1, 14),
+        ]
+
+        products = analyze(journal, MONDAY + int(17 * DAY))["products"]
+
+        assert products[1]["state"] == STATE_LEARNING
+
     def test_a_single_trip_produces_no_intervals(self):
         """The real starting point: many episodes, no repeats, nothing to
         predict from."""

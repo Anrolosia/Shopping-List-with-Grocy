@@ -410,14 +410,27 @@ async def async_suggest_grocery_list_service(call):
 
     # Adding goes through the product sensor, so a product without one (deleted
     # from Grocy, or sensors disabled) must not take one of the limited slots.
+    # The sensor also shows what is already on a list right after an add, while
+    # the journal only catches up on the next Grocy fetch.
     on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
-    without_sensor = {
-        product_id
-        for product_id in analysis["products"]
-        if hass.states.get(f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}")
-        is None
-    }
-    candidates = suggest(analysis, exclude=on_a_list | without_sensor)
+    excluded = set(on_a_list)
+
+    for product_id in analysis["products"]:
+        state = hass.states.get(
+            f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
+        )
+
+        if state is None:
+            excluded.add(product_id)
+            continue
+
+        try:
+            if float(state.state) > 0:
+                excluded.add(product_id)
+        except (TypeError, ValueError):
+            continue
+
+    candidates = suggest(analysis, exclude=excluded)
 
     products = [
         {
@@ -565,17 +578,7 @@ def async_setup_services(hass) -> None:
         if DOMAIN not in hass.data:
             hass.data[DOMAIN] = {}
         hass.data[DOMAIN]["suggestions"] = {"products": [], "last_update": None}
-
-        entity_id = "sensor.grocy_shopping_suggestions"
-        hass.states.async_set(
-            entity_id,
-            0,
-            {
-                "suggestions": [],
-                "last_update": None,
-                "friendly_name": "Grocy Shopping Suggestions",
-            },
-        )
+        async_dispatcher_send(hass, SUGGESTIONS_UPDATED_SIGNAL)
 
     hass.services.async_register(
         DOMAIN,

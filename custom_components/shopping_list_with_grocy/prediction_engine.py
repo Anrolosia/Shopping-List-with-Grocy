@@ -51,7 +51,7 @@ HALF_LIFE_DAYS = 90.0
 # A product needs this many purchases before its own interval is used at all.
 # Two purchases give one interval, which is a data point, not a habit.
 MIN_EPISODES_FOR_INTERVAL = 2
-MIN_EPISODES_TO_SUGGEST = 3
+MIN_INTERVALS_TO_SUGGEST = 2
 
 # How hard an unproven product is pulled toward its group and toward the
 # household. With one interval of its own the estimate is mostly borrowed, with
@@ -206,11 +206,22 @@ def _interval_start(episode: Dict[str, Any]) -> float:
     return episode["a"]
 
 
-def product_intervals(product_episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Return the intervals between consecutive purchases, in days."""
+def product_intervals(
+    product_episodes: List[Dict[str, Any]],
+    dwell_median_days: Optional[float] = None,
+) -> List[Dict[str, Any]]:
+    """Return the intervals between consecutive purchases, in days.
+
+    An interval that starts at a forgotten tick is dropped, but the pairs on
+    either side of it are not joined: that would measure a span across a
+    purchase that was never observed.
+    """
     intervals: List[Dict[str, Any]] = []
 
     for previous, current in zip(product_episodes, product_episodes[1:]):
+        if is_dwell_anomalous(previous, dwell_median_days):
+            continue
+
         start = _interval_start(previous)
         days = (current["a"] - start) / DAY
 
@@ -259,9 +270,12 @@ def household_stats(
         if dwell > 0:
             dwells.append(dwell)
 
+    dwell_median = statistics.median(dwells) if dwells else None
     intervals: List[float] = []
     for product_episodes in episodes_by_product(episodes).values():
-        intervals.extend(item["days"] for item in product_intervals(product_episodes))
+        intervals.extend(
+            item["days"] for item in product_intervals(product_episodes, dwell_median)
+        )
 
     trusted_intervals = len(intervals) >= MIN_HOUSEHOLD_INTERVALS
 
@@ -370,14 +384,10 @@ def analyze(
     household = household_stats(episodes, tz)
     by_product = episodes_by_product(episodes)
 
-    usable: Dict[int, List[Dict[str, Any]]] = {}
-    for product_id, product_episodes in by_product.items():
-        clean = [
-            episode
-            for episode in product_episodes
-            if not is_dwell_anomalous(episode, household["dwell_median_days"])
-        ]
-        usable[product_id] = product_intervals(clean)
+    usable: Dict[int, List[Dict[str, Any]]] = {
+        product_id: product_intervals(product_episodes, household["dwell_median_days"])
+        for product_id, product_episodes in by_product.items()
+    }
 
     group_values: Dict[str, List[float]] = defaultdict(list)
     for product_id, intervals in usable.items():
@@ -453,7 +463,7 @@ def _product_state(
     if overdue is not None and overdue > DORMANT_MULTIPLIER:
         return STATE_DORMANT
 
-    if len(product_episodes) < MIN_EPISODES_TO_SUGGEST:
+    if len(intervals) < MIN_INTERVALS_TO_SUGGEST:
         return STATE_LEARNING
 
     return STATE_READY
