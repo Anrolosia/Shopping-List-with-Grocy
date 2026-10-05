@@ -408,11 +408,16 @@ async def async_suggest_grocery_list_service(call):
     # episodes, so without this the engine suggests what was just added.
     names = _product_names(api)
 
-    # A product deleted from Grocy keeps its history but has no sensor to add
-    # from, so it must not take one of the limited suggestion slots.
+    # Adding goes through the product sensor, so a product without one (deleted
+    # from Grocy, or sensors disabled) must not take one of the limited slots.
     on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
-    deleted = set(analysis["products"]) - set(names) if names else set()
-    candidates = suggest(analysis, exclude=on_a_list | deleted)
+    without_sensor = {
+        product_id
+        for product_id in analysis["products"]
+        if hass.states.get(f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}")
+        is None
+    }
+    candidates = suggest(analysis, exclude=on_a_list | without_sensor)
 
     products = [
         {
