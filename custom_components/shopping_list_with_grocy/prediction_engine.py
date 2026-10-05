@@ -256,7 +256,7 @@ def household_stats(
 
         list_days[datetime.fromtimestamp(episode["a"], tz).weekday()] += 1
 
-        if removed is None:
+        if removed is None or episode.get("est"):
             continue
 
         shop_days[datetime.fromtimestamp(removed, tz).weekday()] += 1
@@ -562,6 +562,6 @@ def suggest(
             }
         )
 
-    candidates.sort(key=lambda item: item["score"], reverse=True)
+    candidates.sort(key=lambda item: item["projected_ratio"], reverse=True)
 
     return candidates[:limit]

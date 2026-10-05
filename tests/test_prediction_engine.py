@@ -552,6 +552,15 @@ class TestSuggest:
         assert analysis["household"]["cycle_days"] == pytest.approx(7, abs=0.01)
         assert suggest(analysis)[0]["horizon_days"] == pytest.approx(7, abs=0.01)
 
+    def test_the_most_overdue_product_wins_a_limited_slot(self):
+        """Both scores cap at 1 here, so ordering must use the uncapped ratio."""
+        journal = every(1, 7, 5) + every(2, 7, 5, start=-4)
+        now = MONDAY + int(43 * DAY)
+
+        results = suggest(analyze(journal, now), limit=1, horizon_days=7)
+
+        assert [item["product_id"] for item in results] == [2]
+
     def test_learning_products_are_not_suggested(self):
         """Two purchases is a data point, not a habit."""
         journal = every(1, 7, 2)

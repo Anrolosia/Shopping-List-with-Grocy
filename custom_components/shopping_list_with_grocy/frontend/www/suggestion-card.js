@@ -440,7 +440,8 @@ class GrocyShoppingSuggestions extends LitElement {
                         class="dismiss-button"
                         @click=${() => this._hide(suggestion.id)}
                         .path=${"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"}
-                        label=${this.t('shopping_list_with_grocy.ui.panel.dismiss')}>
+                        label=${this.t('shopping_list_with_grocy.ui.panel.dismiss')}
+                        ?disabled=${this._loading}>
                     </ha-icon-button>
                     <div class="quantity-controls">
                         <ha-icon-button
