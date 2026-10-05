@@ -2,7 +2,6 @@
 
 import logging
 import os
-import time
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.panel_custom import async_register_panel
@@ -46,7 +45,8 @@ async def async_setup_frontend(hass: HomeAssistant) -> None:
 
     if PANEL_NAME not in hass.data.get(DOMAIN, {}).get("panels", []):
         try:
-            module_url = f"{static_url_path}/suggestion-card.js?t={int(time.time())}"
+            card_path = os.path.join(FRONTEND_PATH, "suggestion-card.js")
+            module_url = f"{static_url_path}/suggestion-card.js?t={int(os.path.getmtime(card_path))}"
 
             language = hass.config.language
             sidebar_title_translations = {

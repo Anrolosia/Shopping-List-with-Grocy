@@ -51,7 +51,7 @@ HALF_LIFE_DAYS = 90.0
 # A product needs this many purchases before its own interval is used at all.
 # Two purchases give one interval, which is a data point, not a habit.
 MIN_EPISODES_FOR_INTERVAL = 2
-MIN_EPISODES_TO_SUGGEST = 3
+MIN_INTERVALS_TO_SUGGEST = 2
 
 # How hard an unproven product is pulled toward its group and toward the
 # household. With one interval of its own the estimate is mostly borrowed, with
@@ -70,6 +70,23 @@ MIN_HOUSEHOLD_INTERVALS = 5
 # rather than very overdue. Without it, the nappies you stopped buying become
 # the top suggestion forever.
 DORMANT_MULTIPLIER = 3.0
+
+# Removals that fall within this gap of each other belong to the same shopping
+# trip. Ticking a list off takes minutes, and the next trip is days away, so
+# anything in between is comfortable.
+SESSION_GAP_DAYS = 0.25
+
+# A cluster this small is a stray tick, not a trip. Counting it as one would
+# drag the cycle estimate down.
+MIN_SESSION_SIZE = 3
+
+# Two gaps means three trips. Below that there is no cycle to speak of.
+MIN_CYCLE_GAPS = 2
+
+# A product is not suggested until this much of its interval has gone by, no
+# matter what the projection says. Without it, anything bought more often than
+# the cycle would be suggested again hours after the shopping.
+MIN_ELAPSED_FRACTION = 0.4
 
 # An episode that sat on the list this much longer than usual was forgotten
 # rather than shopped for, so its interval is not trustworthy.
@@ -110,6 +127,61 @@ def _median_absolute_deviation(values: List[float]) -> Optional[float]:
     return statistics.median([abs(value - center) for value in values])
 
 
+def shopping_sessions(episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Group closed episodes into shopping trips.
+
+    A trip is a burst of removals: ticking a list off takes minutes while the
+    next trip is days away, so a plain gap threshold separates them cleanly.
+    """
+    removals = sorted(
+        episode["r"]
+        for episode in episodes
+        if episode.get("r") is not None and not episode.get("est")
+    )
+
+    if not removals:
+        return []
+
+    sessions: List[Dict[str, Any]] = []
+    current = [removals[0]]
+
+    for removal in removals[1:]:
+        if (removal - current[-1]) / DAY > SESSION_GAP_DAYS:
+            sessions.append({"at": current[0], "size": len(current)})
+            current = [removal]
+        else:
+            current.append(removal)
+
+    sessions.append({"at": current[0], "size": len(current)})
+
+    return sessions
+
+
+def cycle_length(episodes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Estimate how often the household shops, in days.
+
+    This is what turns "is it overdue today" into the question that actually
+    matters when a list is being written: will it be needed before the next
+    trip.
+    """
+    trips = [
+        session
+        for session in shopping_sessions(episodes)
+        if session["size"] >= MIN_SESSION_SIZE
+    ]
+
+    gaps = [
+        (later["at"] - earlier["at"]) / DAY for earlier, later in zip(trips, trips[1:])
+    ]
+
+    return {
+        "cycle_days": statistics.median(gaps) if len(gaps) >= MIN_CYCLE_GAPS else None,
+        "cycle_mad_days": _median_absolute_deviation(gaps),
+        "cycle_sample_size": len(gaps),
+        "trip_count": len(trips),
+    }
+
+
 def episodes_by_product(episodes: List[Dict[str, Any]]) -> Dict[int, List[Dict]]:
     """Group episodes per product, each list sorted oldest first."""
     grouped: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
@@ -123,29 +195,43 @@ def episodes_by_product(episodes: List[Dict[str, Any]]) -> Dict[int, List[Dict]]
     return dict(grouped)
 
 
-def product_intervals(product_episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _interval_start(episode: Dict[str, Any]) -> float:
+    """Return when the wait for the next purchase of this episode began.
+
+    An out of stock episode waited on the shop, so the wait starts once it was
+    removed, the moment it was restocked.
+    """
+    if episode.get("oos") and episode.get("r") is not None:
+        return episode["r"]
+    return episode["a"]
+
+
+def product_intervals(
+    product_episodes: List[Dict[str, Any]],
+    dwell_median_days: Optional[float] = None,
+) -> List[Dict[str, Any]]:
     """Return the intervals between consecutive purchases, in days.
 
-    Normally the interval runs from one addition to the next. When the previous
-    episode was flagged out of stock it runs from its removal instead: the
-    product sat on the list waiting for the shop to restock it, and that wait
-    says nothing about how fast it gets consumed.
+    An interval that starts at a forgotten tick is dropped, but the pairs on
+    either side of it are not joined: that would measure a span across a
+    purchase that was never observed.
     """
     intervals: List[Dict[str, Any]] = []
 
     for previous, current in zip(product_episodes, product_episodes[1:]):
-        if previous.get("oos"):
-            start = previous.get("r", previous["a"])
-            basis = "removal"
-        else:
-            start = previous["a"]
-            basis = "addition"
+        if is_dwell_anomalous(previous, dwell_median_days):
+            continue
 
+        if previous.get("oos") and previous.get("est"):
+            continue
+
+        start = _interval_start(previous)
         days = (current["a"] - start) / DAY
 
         if days <= 0:
             continue
 
+        basis = "addition" if start == previous["a"] else "removal"
         intervals.append({"days": days, "at": current["a"], "basis": basis})
 
     return intervals
@@ -173,7 +259,7 @@ def household_stats(
 
         list_days[datetime.fromtimestamp(episode["a"], tz).weekday()] += 1
 
-        if removed is None:
+        if removed is None or episode.get("est"):
             continue
 
         shop_days[datetime.fromtimestamp(removed, tz).weekday()] += 1
@@ -187,9 +273,12 @@ def household_stats(
         if dwell > 0:
             dwells.append(dwell)
 
+    dwell_median = statistics.median(dwells) if dwells else None
     intervals: List[float] = []
     for product_episodes in episodes_by_product(episodes).values():
-        intervals.extend(item["days"] for item in product_intervals(product_episodes))
+        intervals.extend(
+            item["days"] for item in product_intervals(product_episodes, dwell_median)
+        )
 
     trusted_intervals = len(intervals) >= MIN_HOUSEHOLD_INTERVALS
 
@@ -200,6 +289,7 @@ def household_stats(
     interval_spread = _median_absolute_deviation(intervals)
 
     return {
+        **cycle_length(episodes),
         "dwell_median_days": statistics.median(dwells) if dwells else None,
         "dwell_mad_days": _median_absolute_deviation(dwells),
         "dwell_sample_size": len(dwells),
@@ -224,7 +314,12 @@ def is_dwell_anomalous(
     Forgetting to tick something off inflates the interval that follows it, so
     those episodes are excluded from the interval estimate.
     """
-    if dwell_median_days is None or episode.get("r") is None:
+    if (
+        dwell_median_days is None
+        or episode.get("r") is None
+        or episode.get("oos")
+        or episode.get("est")
+    ):
         return False
 
     dwell = (episode["r"] - episode["a"]) / DAY
@@ -297,14 +392,10 @@ def analyze(
     household = household_stats(episodes, tz)
     by_product = episodes_by_product(episodes)
 
-    usable: Dict[int, List[Dict[str, Any]]] = {}
-    for product_id, product_episodes in by_product.items():
-        clean = [
-            episode
-            for episode in product_episodes
-            if not is_dwell_anomalous(episode, household["dwell_median_days"])
-        ]
-        usable[product_id] = product_intervals(clean)
+    usable: Dict[int, List[Dict[str, Any]]] = {
+        product_id: product_intervals(product_episodes, household["dwell_median_days"])
+        for product_id, product_episodes in by_product.items()
+    }
 
     group_values: Dict[str, List[float]] = defaultdict(list)
     for product_id, intervals in usable.items():
@@ -323,7 +414,7 @@ def analyze(
     for product_id, product_episodes in by_product.items():
         intervals = usable[product_id]
         last = product_episodes[-1]
-        days_since = (now - last["a"]) / DAY
+        days_since = (now - _interval_start(last)) / DAY
 
         estimate = estimate_interval(
             intervals,
@@ -338,6 +429,8 @@ def analyze(
             else None
         )
 
+        due_in = estimate["days"] - days_since if estimate["days"] is not None else None
+
         products[product_id] = {
             "episodes": len(product_episodes),
             "intervals": len(intervals),
@@ -348,6 +441,7 @@ def analyze(
             "borrowed": estimate["borrowed"],
             "mad_days": estimate["mad_days"],
             "overdue_ratio": overdue,
+            "due_in_days": due_in,
             "group": groups.get(product_id),
             "state": _product_state(product_episodes, intervals, overdue),
         }
@@ -377,7 +471,7 @@ def _product_state(
     if overdue is not None and overdue > DORMANT_MULTIPLIER:
         return STATE_DORMANT
 
-    if len(product_episodes) < MIN_EPISODES_TO_SUGGEST:
+    if len(intervals) < MIN_INTERVALS_TO_SUGGEST:
         return STATE_LEARNING
 
     return STATE_READY
@@ -404,33 +498,73 @@ def _coverage(
     }
 
 
-def suggest(analysis: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
-    """Return the products the engine believes are due, best first.
+def suggest(
+    analysis: Dict[str, Any],
+    limit: int = 10,
+    horizon_days: Optional[float] = None,
+    exclude: Optional[set] = None,
+) -> List[Dict[str, Any]]:
+    """Return the products worth putting on the list being written now.
+
+    The question is not whether a product is overdue today. Shopping happens in
+    trips, so what matters while a list is being written is whether the product
+    will be needed before the next trip. A product bought every six days, in a
+    household that shops every seven, has to go on every list even on the days
+    it is not yet overdue.
+
+    That makes the projection horizon the household's own cycle by default.
+    Pass *horizon_days* to override it, and *exclude* to drop products already
+    on a list, since analysis only sees closed episodes and would otherwise
+    suggest what the user just added.
 
     Nothing is padded. A short honest list beats a long one with filler, since
     a single bad suggestion costs more trust than a missing good one earns.
     """
+    exclude = exclude or set()
+
+    if horizon_days is None:
+        horizon_days = analysis["household"].get("cycle_days")
+
+    # With no cycle yet, fall back to asking whether the product is overdue
+    # right now. That is the honest answer when the household's rhythm is still
+    # unknown.
+    horizon = horizon_days or 0.0
+
     candidates = []
 
     for product_id, stats in analysis["products"].items():
-        if stats["state"] != STATE_READY:
+        if stats["state"] != STATE_READY or product_id in exclude:
             continue
 
-        overdue = stats["overdue_ratio"]
-        if overdue is None or overdue < 1.0:
+        interval = stats["interval_days"]
+        if not interval:
+            continue
+
+        elapsed = stats["days_since_last"]
+
+        # Just bought. Whatever the projection says, suggesting it now would
+        # read as noise.
+        if elapsed < MIN_ELAPSED_FRACTION * interval:
+            continue
+
+        projected = (elapsed + horizon) / interval
+        if projected < 1.0:
             continue
 
         candidates.append(
             {
                 "product_id": product_id,
-                "score": min(overdue, DORMANT_MULTIPLIER) / DORMANT_MULTIPLIER,
-                "overdue_ratio": overdue,
-                "interval_days": stats["interval_days"],
-                "days_since_last": stats["days_since_last"],
+                "score": min(projected, DORMANT_MULTIPLIER) / DORMANT_MULTIPLIER,
+                "projected_ratio": projected,
+                "overdue_ratio": stats["overdue_ratio"],
+                "due_in_days": stats["due_in_days"],
+                "interval_days": interval,
+                "days_since_last": elapsed,
+                "horizon_days": horizon,
                 "borrowed": stats["borrowed"],
             }
         )
 
-    candidates.sort(key=lambda item: item["score"], reverse=True)
+    candidates.sort(key=lambda item: item["projected_ratio"], reverse=True)
 
     return candidates[:limit]

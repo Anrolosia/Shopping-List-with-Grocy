@@ -8,18 +8,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 
-from .analysis_const import (
-    ANALYSIS_SCHEMA,
-    CONF_ANALYSIS_SETTINGS,
-    CONF_CONSUMPTION_WEIGHT,
-    CONF_FREQUENCY_WEIGHT,
-    CONF_SCORE_THRESHOLD,
-    CONF_SEASONAL_WEIGHT,
-    DEFAULT_CONSUMPTION_WEIGHT,
-    DEFAULT_FREQUENCY_WEIGHT,
-    DEFAULT_SCORE_THRESHOLD,
-    DEFAULT_SEASONAL_WEIGHT,
-)
 from .const import (
     CONF_AUTO_SELECT_FIRST,
     CONF_ENABLE_PRODUCT_SENSORS,
@@ -61,14 +49,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
         """Initialize options flow."""
         self._stored_config_entry = config_entry
         self.options = dict(config_entry.options or config_entry.data)
-
-        if CONF_ANALYSIS_SETTINGS not in self.options:
-            self.options[CONF_ANALYSIS_SETTINGS] = {
-                CONF_CONSUMPTION_WEIGHT: DEFAULT_CONSUMPTION_WEIGHT,
-                CONF_FREQUENCY_WEIGHT: DEFAULT_FREQUENCY_WEIGHT,
-                CONF_SEASONAL_WEIGHT: DEFAULT_SEASONAL_WEIGHT,
-                CONF_SCORE_THRESHOLD: DEFAULT_SCORE_THRESHOLD,
-            }
 
         if CONF_SELECTION_CRITERIA not in self.options:
             self.options[CONF_SELECTION_CRITERIA] = {
@@ -126,15 +106,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
                         CONF_ENABLE_PRODUCT_SENSORS, True
                     ),
                     "unique_id": self.options.get("unique_id"),
-                    CONF_ANALYSIS_SETTINGS: self.options.get(
-                        CONF_ANALYSIS_SETTINGS,
-                        {
-                            CONF_CONSUMPTION_WEIGHT: DEFAULT_CONSUMPTION_WEIGHT,
-                            CONF_FREQUENCY_WEIGHT: DEFAULT_FREQUENCY_WEIGHT,
-                            CONF_SEASONAL_WEIGHT: DEFAULT_SEASONAL_WEIGHT,
-                            CONF_SCORE_THRESHOLD: DEFAULT_SCORE_THRESHOLD,
-                        },
-                    ),
                     "disable_notifications": user_input.get(
                         "disable_notifications", False
                     ),
@@ -217,7 +188,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             data_schema=vol.Schema(base_schema),
             errors=self._errors,
             description_placeholders={
-                "disclaimer": "ℹ️ The shopping suggestions work great with default settings. Only access advanced settings if you need to fine-tune the algorithm.",
+                "disclaimer": "ℹ️ Advanced settings only control product selection with bidirectional sync.",
             },
         )
 
@@ -226,69 +197,32 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
     ) -> FlowResult:
         """Handle advanced settings with disclaimer."""
         self._errors = {}
-        current_analysis_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
         current_selection_criteria = self.options.get(CONF_SELECTION_CRITERIA, {})
 
         if user_input is not None:
+            selection_criteria = {
+                CONF_PREFER_GENERIC_PRODUCTS: user_input.get(
+                    CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
+                ),
+                CONF_AUTO_SELECT_FIRST: user_input.get(
+                    CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
+                ),
+                CONF_SUGGEST_CREATE_ONLY_NO_MATCH: user_input.get(
+                    CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
+                    DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
+                ),
+            }
+
             try:
-                # Extract analysis settings
-                analysis_settings = {
-                    CONF_CONSUMPTION_WEIGHT: user_input.get(
-                        CONF_CONSUMPTION_WEIGHT, DEFAULT_CONSUMPTION_WEIGHT
-                    ),
-                    CONF_FREQUENCY_WEIGHT: user_input.get(
-                        CONF_FREQUENCY_WEIGHT, DEFAULT_FREQUENCY_WEIGHT
-                    ),
-                    CONF_SEASONAL_WEIGHT: user_input.get(
-                        CONF_SEASONAL_WEIGHT, DEFAULT_SEASONAL_WEIGHT
-                    ),
-                    CONF_SCORE_THRESHOLD: user_input.get(
-                        CONF_SCORE_THRESHOLD, DEFAULT_SCORE_THRESHOLD
-                    ),
-                }
-
-                # Extract selection criteria
-                selection_criteria = {
-                    CONF_PREFER_GENERIC_PRODUCTS: user_input.get(
-                        CONF_PREFER_GENERIC_PRODUCTS, DEFAULT_PREFER_GENERIC_PRODUCTS
-                    ),
-                    CONF_AUTO_SELECT_FIRST: user_input.get(
-                        CONF_AUTO_SELECT_FIRST, DEFAULT_AUTO_SELECT_FIRST
-                    ),
-                    CONF_SUGGEST_CREATE_ONLY_NO_MATCH: user_input.get(
-                        CONF_SUGGEST_CREATE_ONLY_NO_MATCH,
-                        DEFAULT_SUGGEST_CREATE_ONLY_NO_MATCH,
-                    ),
-                }
-
-                analysis_settings = ANALYSIS_SCHEMA(analysis_settings)
-                try:
-                    selection_criteria = SELECTION_CRITERIA_SCHEMA(selection_criteria)
-                except vol.Invalid:
-                    self._errors["base"] = "invalid_selection_criteria"
-
-                total_weight = (
-                    analysis_settings[CONF_CONSUMPTION_WEIGHT]
-                    + analysis_settings[CONF_FREQUENCY_WEIGHT]
-                    + analysis_settings[CONF_SEASONAL_WEIGHT]
-                )
-                if not 0.99 <= total_weight <= 1.01:
-                    self._errors["base"] = "weight_sum_error"
+                selection_criteria = SELECTION_CRITERIA_SCHEMA(selection_criteria)
             except vol.Invalid:
-                self._errors["base"] = "invalid_analysis_settings"
+                self._errors["base"] = "invalid_selection_criteria"
 
             if not self._errors:
                 updated_data = dict(self.options)
-                updated_data[CONF_ANALYSIS_SETTINGS] = analysis_settings
                 updated_data[CONF_SELECTION_CRITERIA] = selection_criteria
 
-                old_analysis_settings = self.options.get(CONF_ANALYSIS_SETTINGS, {})
-                old_selection_criteria = self.options.get(CONF_SELECTION_CRITERIA, {})
-
-                if (
-                    old_analysis_settings != analysis_settings
-                    or old_selection_criteria != selection_criteria
-                ):
+                if self.options.get(CONF_SELECTION_CRITERIA, {}) != selection_criteria:
                     await _create_restart_repair_issue(
                         self.hass, "restart_required_analysis"
                     )
@@ -299,32 +233,6 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             step_id="advanced",
             data_schema=vol.Schema(
                 {
-                    # Analysis Settings
-                    vol.Required(
-                        CONF_SCORE_THRESHOLD,
-                        default=current_analysis_settings.get(
-                            CONF_SCORE_THRESHOLD, DEFAULT_SCORE_THRESHOLD
-                        ),
-                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
-                    vol.Required(
-                        CONF_CONSUMPTION_WEIGHT,
-                        default=current_analysis_settings.get(
-                            CONF_CONSUMPTION_WEIGHT, DEFAULT_CONSUMPTION_WEIGHT
-                        ),
-                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
-                    vol.Required(
-                        CONF_FREQUENCY_WEIGHT,
-                        default=current_analysis_settings.get(
-                            CONF_FREQUENCY_WEIGHT, DEFAULT_FREQUENCY_WEIGHT
-                        ),
-                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
-                    vol.Required(
-                        CONF_SEASONAL_WEIGHT,
-                        default=current_analysis_settings.get(
-                            CONF_SEASONAL_WEIGHT, DEFAULT_SEASONAL_WEIGHT
-                        ),
-                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
-                    # Selection Criteria
                     vol.Optional(
                         CONF_PREFER_GENERIC_PRODUCTS,
                         default=current_selection_criteria.get(
@@ -349,7 +257,7 @@ class ShoppingListWithGrocyOptionsConfigFlow(config_entries.OptionsFlow):  # typ
             ),
             errors=self._errors,
             description_placeholders={
-                "warning": "⚠️ Analysis settings control how shopping suggestions are calculated. Selection criteria work only with bidirectional sync enabled. All weights must sum to 1.0."
+                "warning": "⚠️ Selection criteria work only with bidirectional sync enabled."
             },
         )
 

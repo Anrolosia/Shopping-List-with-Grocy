@@ -1,5 +1,37 @@
 {
   "shopping_list_with_grocy": {
+    "ui": {
+      "panel": {
+        "title": "Einkaufsvorschläge",
+        "analysis_progress": "Analyse läuft...",
+        "no_analysis": "Derzeit keine Vorschläge verfügbar. Klicken Sie auf Aktualisieren, um Ihren Einkaufsbedarf zu analysieren.",
+        "no_matches": "Kein Produkt entspricht den aktuellen Analysekriterien",
+        "refresh": "Vorschläge Aktualisieren",
+        "add_all": "Ausgewählte Hinzufügen",
+        "add_all_count": "Ausgewählte Hinzufügen ({count})",
+        "quantity": {
+          "increase": "Menge erhöhen",
+          "decrease": "Menge verringern",
+          "select": "Menge auswählen",
+          "add": "Zur Einkaufsliste hinzufügen"
+        },
+        "dismiss": "Diesen Vorschlag ignorieren",
+        "engine_state": {
+          "ready": "{count} bereit",
+          "learning": "{count} lernend",
+          "cold": "{count} zu wenig Daten"
+        },
+        "stats": {
+          "score": "Punktzahl: {score}",
+          "confidence": "Konfidenz: {confidence}",
+          "stock": "Bestand: {current}/{min}",
+          "overdue": "{days} Tag(e) überfällig",
+          "due_today": "Heute fällig",
+          "due_in": "Fällig in {days} Tag(en)",
+          "interval": "etwa alle {days} Tage"
+        }
+      }
+    },
     "notifications": {
       "restart_required": {
         "setup": {

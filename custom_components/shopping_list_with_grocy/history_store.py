@@ -37,10 +37,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, SUGGESTIONS_UPDATED_SIGNAL
 
 LOGGER = logging.getLogger(__name__)
 
@@ -361,6 +362,8 @@ class PurchaseHistoryStore:
 
         if changed:
             self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+
+        async_dispatcher_send(self.hass, SUGGESTIONS_UPDATED_SIGNAL)
 
     def _advance(
         self,

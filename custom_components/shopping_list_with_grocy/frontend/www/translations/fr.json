@@ -15,10 +15,20 @@
                     "select": "Sélectionner la quantité",
                     "add": "Ajouter à la liste d'achats"
                 },
+                "dismiss": "Ignorer cette suggestion",
+                "engine_state": {
+                    "ready": "{count} prêt(s)",
+                    "learning": "{count} en apprentissage",
+                    "cold": "{count} pas assez de données"
+                },
                 "stats": {
                     "score": "Score : {score}",
                     "confidence": "Confiance : {confidence}",
-                    "stock": "Stock : {current}/{min}"
+                    "stock": "Stock : {current}/{min}",
+                    "overdue": "En retard de {days} jour(s)",
+                    "due_today": "À acheter aujourd'hui",
+                    "due_in": "Prévu dans {days} jour(s)",
+                    "interval": "environ tous les {days} jours"
                 }
             }
         },
