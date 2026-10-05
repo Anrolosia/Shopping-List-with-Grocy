@@ -292,6 +292,12 @@ class TestDwellAnomaly:
 
         assert not is_dwell_anomalous(open_episode, 15 / 24)
 
+    def test_an_estimated_removal_is_not_a_forgotten_tick(self):
+        """Its timestamp is when Home Assistant resumed, not when it was bought."""
+        estimated = episode(1, 0, dwell_hours=200, est=1)
+
+        assert not is_dwell_anomalous(estimated, 15 / 24)
+
     def test_an_out_of_stock_wait_is_not_a_forgotten_tick(self):
         """Waiting for the shop to restock is long by design."""
         waiting = episode(1, 0, dwell_hours=200, oos=1)

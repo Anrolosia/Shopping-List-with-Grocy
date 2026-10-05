@@ -797,6 +797,7 @@ class ShoppingListWithGrocyApi:
                         "qty_in_shopping_lists": total_qty,
                         f"list_{shopping_list_id}_qty": qty,
                         f"list_{shopping_list_id}_note": note,
+                        f"list_{shopping_list_id}_done": 0,
                         "list_count": list_count,
                     }
                 )

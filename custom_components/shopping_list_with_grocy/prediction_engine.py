@@ -311,7 +311,12 @@ def is_dwell_anomalous(
     Forgetting to tick something off inflates the interval that follows it, so
     those episodes are excluded from the interval estimate.
     """
-    if dwell_median_days is None or episode.get("r") is None or episode.get("oos"):
+    if (
+        dwell_median_days is None
+        or episode.get("r") is None
+        or episode.get("oos")
+        or episode.get("est")
+    ):
         return False
 
     dwell = (episode["r"] - episode["a"]) / DAY

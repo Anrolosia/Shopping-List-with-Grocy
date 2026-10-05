@@ -31,7 +31,7 @@ from .frontend_translations import (
     get_notification_strings,
     get_voice_response,
 )
-from .history_store import SOURCE_SHOPPING_LIST
+from .history_store import SOURCE_SHOPPING_LIST, read_observation
 from .prediction_engine import analyze, suggest
 
 LOGGER = logging.getLogger(__name__)
@@ -410,8 +410,8 @@ async def async_suggest_grocery_list_service(call):
 
     # Adding goes through the product sensor, so a product without one (deleted
     # from Grocy, or sensors disabled) must not take one of the limited slots.
-    # The sensor also shows what is already on a list right after an add, while
-    # the journal only catches up on the next Grocy fetch.
+    # The sensor shows an add right away, while the journal only catches up on
+    # the next Grocy fetch. Ticked-off rows do not count: that product was bought.
     on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
     excluded = set(on_a_list)
 
@@ -424,11 +424,8 @@ async def async_suggest_grocery_list_service(call):
             excluded.add(product_id)
             continue
 
-        try:
-            if float(state.state) > 0:
-                excluded.add(product_id)
-        except (TypeError, ValueError):
-            continue
+        if read_observation({"attributes": dict(state.attributes)})["quantity"] > 0:
+            excluded.add(product_id)
 
     candidates = suggest(analysis, exclude=excluded)
 
