@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.29.0] - 2026-10-05
+
+### ✨ Features
+
+- Replaced the suggestion panel with the purchase history engine
+- Added a statistical prediction engine over the purchase history
+
+### 🐛 Bug Fixes
+
+- Read Grocy row timestamps in both plausible timezones
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.28.0] - 2026-09-10
 
 ### ✨ Features
