@@ -198,3 +198,11 @@ dump_purchase_history:
   description: >
     Log a snapshot of the captured shopping list episodes used by the prediction
     engine. Enable debug logging for the integration to see the full journal.
+
+
+analyze_purchase_history:
+  name: Analyze purchase history
+  description: >
+    Run the statistical prediction engine over the collected purchase history and
+    log what it can currently say. Coverage and household statistics are logged at
+    info level, the full per-product analysis at debug level.

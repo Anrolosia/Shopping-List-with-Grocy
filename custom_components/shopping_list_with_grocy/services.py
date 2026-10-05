@@ -3,16 +3,15 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from collections import Counter
 
 import voluptuous as vol
-from homeassistant.components.recorder.history import get_significant_states
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.entity_registry import async_get
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.issue_registry import async_create_issue, async_delete_issue
+from homeassistant.util import dt as dt_util
 
-from .analysis_const import CONF_ANALYSIS_SETTINGS
 from .const import (
     CONF_SELECTION_CRITERIA,
     DOMAIN,
@@ -25,13 +24,15 @@ from .const import (
     SERVICE_REFRESH,
     SERVICE_REMOVE,
     SERVICE_SEARCH,
+    SUGGESTIONS_UPDATED_SIGNAL,
 )
 from .frontend_translations import (
     async_load_frontend_translations,
     get_notification_strings,
     get_voice_response,
 )
-from .ml_engine import PurchasePredictionEngine
+from .history_store import SOURCE_SHOPPING_LIST, read_observation
+from .prediction_engine import analyze, suggest
 
 LOGGER = logging.getLogger(__name__)
 
@@ -178,6 +179,197 @@ SUGGEST_GROCERY_SCHEMA = vol.Schema(
 )
 
 
+async def async_analyze_purchase_history_service(call):
+    """Log what the prediction engine can currently say about the journal."""
+    hass = call.hass
+
+    history = hass.data.get(DOMAIN, {}).get("instances", {}).get("history")
+
+    if not history:
+        LOGGER.warning("Purchase history store is not initialized")
+        return
+
+    api = hass.data.get(DOMAIN, {}).get("instances", {}).get("api")
+
+    analysis = analyze(
+        history.get_episodes(source=SOURCE_SHOPPING_LIST),
+        int(dt_util.utcnow().timestamp()),
+        _product_groups(api),
+        dt_util.DEFAULT_TIME_ZONE,
+    )
+
+    coverage = analysis["coverage"]
+    household = analysis["household"]
+
+    suggestions = suggest(analysis, exclude=_unavailable_product_ids(hass, analysis))
+
+    LOGGER.info(
+        "Prediction coverage: %d product(s) over %d episode(s), %d repeated, "
+        "%d interval(s) available",
+        coverage["products"],
+        coverage["episodes"],
+        coverage["products_with_2_episodes"],
+        coverage["total_intervals"],
+    )
+
+    if household["dwell_median_days"] is not None:
+        LOGGER.info(
+            "Household: dwell median %.1f h over %d episode(s), list day %s, "
+            "shopping day %s",
+            household["dwell_median_days"] * 24,
+            household["dwell_sample_size"],
+            _weekday_name(household["list_weekday"]),
+            _weekday_name(household["shop_weekday"]),
+        )
+
+    if household["cycle_days"] is not None:
+        LOGGER.info(
+            "Household shops every %.1f day(s) over %d trip(s), suggestions "
+            "project to the next one",
+            household["cycle_days"],
+            household["trip_count"],
+        )
+    else:
+        LOGGER.info(
+            "Household cycle unknown after %d trip(s), suggestions fall back "
+            "to what is overdue today",
+            household["trip_count"],
+        )
+
+    LOGGER.info("Prediction produced %d suggestion(s)", len(suggestions))
+    LOGGER.debug("Prediction analysis: %s", analysis)
+    LOGGER.debug("Prediction suggestions: %s", suggestions)
+
+
+def _product_groups(api):
+    """Map product ids to their Grocy product group.
+
+    The group is the middle level of the prediction engine's shrinkage, so a
+    product with little history of its own can borrow from its peers.
+
+    Grocy's raw payload lives in ``final_data["products"]`` as a list and only
+    carries ``product_group_id``. The parsed payload under
+    ``homeassistant_products`` is keyed by product id and already has the group
+    name resolved, so that is the one to read.
+    """
+    if not api:
+        return {}
+
+    final_data = getattr(api, "final_data", None) or {}
+    parsed = final_data.get("homeassistant_products") or {}
+
+    if not isinstance(parsed, dict):
+        return {}
+
+    groups = {}
+
+    for product in parsed.values():
+        group = (product.get("attributes") or {}).get("group")
+
+        if not group:
+            continue
+
+        try:
+            groups[int(product["product_id"])] = group
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return groups
+
+
+def _product_names(api):
+    """Map product ids to their Grocy display name.
+
+    ``final_data["products"]`` is the raw Grocy payload, a plain list where
+    each entry already carries ``id`` and ``name``. No parsing needed.
+    """
+    if not api:
+        return {}
+
+    final_data = getattr(api, "final_data", None) or {}
+    products = final_data.get("products") or []
+
+    if not isinstance(products, list):
+        return {}
+
+    names = {}
+
+    for product in products:
+        try:
+            names[int(product["id"])] = product["name"]
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return names
+
+
+def _unavailable_product_ids(hass, analysis) -> set:
+    """Return the products that cannot be suggested right now.
+
+    Adding goes through the product sensor, so a product without one (deleted
+    from Grocy, or sensors disabled) cannot be added. A product with outstanding
+    quantity on a list is already handled. The sensor reflects both right away,
+    while the journal only catches up on the next Grocy fetch.
+    """
+    excluded = set()
+
+    for product_id in analysis["products"]:
+        state = hass.states.get(
+            f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
+        )
+
+        if (
+            state is None
+            or read_observation({"attributes": dict(state.attributes)})["quantity"] > 0
+        ):
+            excluded.add(product_id)
+
+    return excluded
+
+
+def engine_summary(hass) -> dict:
+    """Return how far the prediction engine can go, read from the journal.
+
+    Derived from the persisted purchase history on every read, so it is right
+    straight after a restart without being stored anywhere else.
+    """
+    instances = hass.data.get(DOMAIN, {}).get("instances", {})
+    history = instances.get("history")
+
+    if not history:
+        return {"engine_state": {}, "coverage": {}}
+
+    analysis = analyze(
+        history.get_episodes(source=SOURCE_SHOPPING_LIST),
+        int(dt_util.utcnow().timestamp()),
+        _product_groups(instances.get("api")),
+        dt_util.DEFAULT_TIME_ZONE,
+    )
+
+    return {
+        "engine_state": dict(
+            Counter(stats["state"] for stats in analysis["products"].values())
+        ),
+        "coverage": analysis["coverage"],
+    }
+
+
+def _weekday_name(index):
+    """Return an English weekday name, or unknown when there is no data."""
+    if index is None:
+        return "unknown"
+
+    return (
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    )[index]
+
+
 async def async_dump_purchase_history_service(call):
     """Log a snapshot of the captured purchase episodes for debugging."""
     hass = call.hass
@@ -203,12 +395,18 @@ async def async_dump_purchase_history_service(call):
 
 
 async def async_suggest_grocery_list_service(call):
-    """Service to suggest grocery items based on ML analysis."""
+    """Service to suggest grocery items from the purchase history engine."""
     hass = call.hass
 
-    config_entry = hass.config_entries.async_entries(DOMAIN)[0]
-    config = dict(config_entry.options)
+    history = hass.data.get(DOMAIN, {}).get("instances", {}).get("history")
 
+    if not history:
+        LOGGER.warning("Purchase history store is not initialized")
+        return
+
+    api = hass.data.get(DOMAIN, {}).get("instances", {}).get("api")
+
+    config_entry = hass.config_entries.async_entries(DOMAIN)[0]
     user_language = config_entry.data.get("language", hass.config.language)
 
     try:
@@ -220,139 +418,34 @@ async def async_suggest_grocery_list_service(call):
             "card_hint": "New shopping suggestions are available! View them in the Shopping Suggestions dashboard panel.",
         }
 
-    analysis_settings = config.get(CONF_ANALYSIS_SETTINGS, {})
+    analysis = analyze(
+        history.get_episodes(source=SOURCE_SHOPPING_LIST),
+        int(dt_util.utcnow().timestamp()),
+        _product_groups(api),
+        dt_util.DEFAULT_TIME_ZONE,
+    )
 
-    prediction_engine = PurchasePredictionEngine(hass, analysis_settings)
+    # Products sitting on a list are already handled. Analysis only sees closed
+    # episodes, so without this the engine suggests what was just added.
+    names = _product_names(api)
 
-    ent_reg = async_get(hass)
+    candidates = suggest(analysis, exclude=_unavailable_product_ids(hass, analysis))
 
-    product_entities = [
-        entry.entity_id
-        for entry in ent_reg.entities.values()
-        if entry.domain == "sensor"
-        and entry.platform == "shopping_list_with_grocy"
-        and entry.unique_id.startswith(f"{DOMAIN}_product_v{ENTITY_VERSION}_")
+    products = [
+        {
+            "id": f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{item['product_id']}",
+            "name": names.get(item["product_id"], str(item["product_id"])),
+            "interval_days": item["interval_days"],
+            "due_in_days": item["due_in_days"],
+            "days_since_last": item["days_since_last"],
+            "borrowed": item["borrowed"],
+        }
+        for item in candidates
     ]
 
-    now = datetime.now()
-    all_products = []
-
-    for entity_id in product_entities:
-        state = hass.states.get(entity_id)
-        if not state:
-            continue
-
-        try:
-            entity = ent_reg.entities.get(entity_id)
-            if entity:
-                friendly_name = entity.original_name
-            else:
-                friendly_name = None
-        except (KeyError, AttributeError):
-            friendly_name = None
-
-        if not friendly_name:
-            friendly_name = state.attributes.get("friendly_name", entity_id)
-
-        history = await hass.async_add_executor_job(
-            get_significant_states,
-            hass,
-            now - timedelta(days=60),
-            now,
-            [entity_id],
-            None,
-            None,
-        )
-
-        history_list = []
-        if entity_id in history:
-            for state_obj in history[entity_id]:
-                try:
-                    state_val = state_obj.state if hasattr(state_obj, "state") else "0"
-                    last_changed = (
-                        state_obj.last_changed
-                        if hasattr(state_obj, "last_changed")
-                        else None
-                    )
-
-                    if last_changed:
-                        history_list.append(
-                            {"state": state_val, "last_changed": last_changed}
-                        )
-                except Exception:
-                    continue
-
-        if not history_list:
-            history_list = []
-
-        analysis = await prediction_engine.analyze_purchase_patterns(
-            entity_id, history_list, friendly_name
-        )
-
-        friendly_name = ent_reg.entities[entity_id].original_name
-        if not friendly_name:
-            friendly_name = state.attributes.get("friendly_name", entity_id)
-
-        product_info = {
-            "entity_id": entity_id,
-            "friendly_name": friendly_name,
-            "score": analysis["score"],
-            "confidence": analysis["confidence"],
-            "factors": analysis["factors"],
-        }
-
-        all_products.append(product_info)
-
-    all_products.sort(key=lambda x: x["score"], reverse=True)
-
-    suggested = []
-    debug_info = []
-
-    for product in all_products:
-        analysis = {
-            "score": product["score"],
-            "confidence": product["confidence"],
-            "factors": product["factors"],
-        }
-        if prediction_engine.should_suggest_purchase(analysis):
-            suggested.append(product)
-
-    if len(suggested) < 10:
-        remaining_needed = 10 - len(suggested)
-        additional_products = [p for p in all_products if p not in suggested][
-            :remaining_needed
-        ]
-        suggested.extend(additional_products)
-
-    for product in all_products:
-        debug_info.append(
-            f"{product['friendly_name']}:\n"
-            f"  Score: {product['score']:.2f}\n"
-            f"  Confidence: {product['confidence']:.2f}\n"
-            f"  Factors: "
-            + "\n    ".join(
-                [f"{f['type']}: {f['description']}" for f in product["factors"]]
-            )
-        )
-
-    filtered_products = [
-        p for p in suggested if p["score"] >= prediction_engine.score_threshold
-    ]
-    filtered_products.sort(key=lambda x: x["score"], reverse=True)
-
-    notification_title = suggestion_strings["title"]
-
-    product_entries = []
-    for i, product in enumerate(filtered_products):
-        name_text = product["friendly_name"]
-        score_text = (
-            f"Score: {product['score']:.2f} (Confidence: {product['confidence']:.2f})"
-        )
-        product_entries.append(f"{name_text}\n{score_text}")
-
-    if not call.data.get("disable_notification", False):
+    if products and not call.data.get("disable_notification", False):
         notification_data = {
-            "title": notification_title,
+            "title": suggestion_strings["title"],
             "message": suggestion_strings["card_hint"].format(
                 url="/grocy-shopping-suggestions"
             ),
@@ -362,34 +455,13 @@ async def async_suggest_grocery_list_service(call):
             "persistent_notification", "create", notification_data
         )
 
-    if "suggestions" not in hass.data[DOMAIN]:
-        hass.data[DOMAIN]["suggestions"] = {}
-
     suggestions_data = {
-        "last_update": datetime.now().isoformat(),
-        "products": [
-            {
-                "id": p["entity_id"],
-                "name": p["friendly_name"],
-                "score": p["score"],
-                "confidence": p["confidence"],
-            }
-            for p in filtered_products
-        ],
+        "last_update": dt_util.utcnow().isoformat(),
+        "products": products,
     }
 
-    hass.data[DOMAIN]["suggestions"].update(suggestions_data)
-
-    entity_id = "sensor.grocy_shopping_suggestions"
-    hass.states.async_set(
-        entity_id,
-        len(filtered_products),
-        {
-            "suggestions": suggestions_data["products"],
-            "last_update": suggestions_data["last_update"],
-            "friendly_name": "Grocy Shopping Suggestions",
-        },
-    )
+    hass.data[DOMAIN]["suggestions"] = suggestions_data
+    async_dispatcher_send(hass, SUGGESTIONS_UPDATED_SIGNAL)
 
 
 @callback
@@ -505,17 +577,7 @@ def async_setup_services(hass) -> None:
         if DOMAIN not in hass.data:
             hass.data[DOMAIN] = {}
         hass.data[DOMAIN]["suggestions"] = {"products": [], "last_update": None}
-
-        entity_id = "sensor.grocy_shopping_suggestions"
-        hass.states.async_set(
-            entity_id,
-            0,
-            {
-                "suggestions": [],
-                "last_update": None,
-                "friendly_name": "Grocy Shopping Suggestions",
-            },
-        )
+        async_dispatcher_send(hass, SUGGESTIONS_UPDATED_SIGNAL)
 
     hass.services.async_register(
         DOMAIN,
@@ -528,6 +590,13 @@ def async_setup_services(hass) -> None:
         DOMAIN,
         "dump_purchase_history",
         async_dump_purchase_history_service,
+        schema=vol.Schema({}),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "analyze_purchase_history",
+        async_analyze_purchase_history_service,
         schema=vol.Schema({}),
     )
 
@@ -2039,6 +2108,7 @@ def async_unload_services(hass) -> None:
     hass.services.async_remove(DOMAIN, "suggest_grocery_list")
     hass.services.async_remove(DOMAIN, "reset_suggestions")
     hass.services.async_remove(DOMAIN, "dump_purchase_history")
+    hass.services.async_remove(DOMAIN, "analyze_purchase_history")
     hass.services.async_remove(DOMAIN, "test_bidirectional_sync")
     hass.services.async_remove(DOMAIN, "emergency_stop_sync")
     hass.services.async_remove(DOMAIN, "restart_sync")

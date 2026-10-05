@@ -4,6 +4,8 @@ DOMAIN = "shopping_list_with_grocy"
 
 ENTITY_VERSION = 2
 
+SUGGESTIONS_UPDATED_SIGNAL = f"{DOMAIN}_suggestions_updated"
+
 # Configuration options
 CONF_ENABLE_PRODUCT_SENSORS = "enable_product_sensors"
 

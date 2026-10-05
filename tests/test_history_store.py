@@ -189,7 +189,7 @@ class TestReadObservation:
 
     def test_reads_the_row_creation_time(self):
         parsed = product(1, 1, [1], created=1788986400)
-        assert read_observation(parsed)["created"] == 1788986400
+        assert read_observation(parsed)["created"] == [1788986400]
 
     def test_takes_the_earliest_creation_across_lists(self):
         parsed = product(1, 1, [1], created=1788986400)
@@ -197,7 +197,7 @@ class TestReadObservation:
         parsed["attributes"]["list_2_done"] = 0
         parsed["attributes"]["list_2_created"] = grocy_time(1788900000)
 
-        assert read_observation(parsed)["created"] == 1788900000
+        assert read_observation(parsed)["created"] == [1788900000]
 
     def test_an_unparseable_creation_time_is_dropped(self):
         parsed = product(1, 1, [1])
@@ -238,21 +238,30 @@ class TestResolveAddedAt:
     def test_a_row_created_since_the_last_look_wins(self):
         """A whole list can be built while updates are paused, and every
         product would otherwise share one timestamp."""
-        assert resolve_added_at({"created": 500}, 1000, 100) == 500
+        assert resolve_added_at({"created": [500]}, 1000, 100) == 500
 
     def test_a_row_older_than_the_last_look_is_ignored(self):
         """Re-adding a product updates its existing row in place, so the
         creation time can be a week old."""
-        assert resolve_added_at({"created": 50}, 1000, 100) == 1000
+        assert resolve_added_at({"created": [50]}, 1000, 100) == 1000
 
     def test_a_row_from_the_future_is_ignored(self):
-        assert resolve_added_at({"created": 5000}, 1000, 100) == 1000
+        assert resolve_added_at({"created": [5000]}, 1000, 100) == 1000
 
     def test_no_creation_time_falls_back_to_now(self):
-        assert resolve_added_at({"created": None}, 1000, 100) == 1000
+        assert resolve_added_at({"created": []}, 1000, 100) == 1000
 
     def test_the_first_observation_ever_falls_back_to_now(self):
-        assert resolve_added_at({"created": 500}, 1000, None) == 1000
+        assert resolve_added_at({"created": [500]}, 1000, None) == 1000
+
+    def test_the_window_picks_between_timezone_readings(self):
+        """Grocy timestamps carry no timezone. The reading that is hours off
+        falls outside the window and is discarded."""
+        assert resolve_added_at({"created": [500, 500 - 14400]}, 1000, 100) == 500
+
+    def test_the_later_reading_wins_when_both_fit(self):
+        """Never invent an addition older than it really was."""
+        assert resolve_added_at({"created": [500, 900]}, 1000, 100) == 900
 
 
 # ── Opening ──────────────────────────────────────────────────────────────────

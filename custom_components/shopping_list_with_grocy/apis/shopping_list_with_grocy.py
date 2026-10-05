@@ -800,6 +800,8 @@ class ShoppingListWithGrocyApi:
                         "list_count": list_count,
                     }
                 )
+                if not remove_product:
+                    attributes[f"list_{shopping_list_id}_done"] = 0
             else:
                 attributes_to_remove = [
                     f"list_{shopping_list_id}_qty",

@@ -37,10 +37,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, SUGGESTIONS_UPDATED_SIGNAL
 
 LOGGER = logging.getLogger(__name__)
 
@@ -122,17 +123,21 @@ def normalize_episode(episode: Dict[str, Any]) -> Dict[str, Any]:
     return episode
 
 
-def _parse_created(value: Any) -> Optional[int]:
-    """Parse a Grocy row creation timestamp into a UTC epoch.
+def _parse_created(value: Any) -> List[int]:
+    """Parse a Grocy row creation timestamp into candidate UTC epochs.
 
-    Grocy writes naive timestamps in the server's own timezone. They are read
-    as UTC here, which is the same assumption the Grocy stock log source makes.
-    A few hours of skew never matters: the value is only used when it falls
-    inside the window since the last observation, and it is discarded
-    otherwise.
+    Grocy writes naive timestamps with no timezone attached, and which one it
+    means depends on how that instance is configured. Most self-hosted setups
+    run in the household's own timezone, but UTC is just as valid.
+
+    Rather than guess, both readings are returned and the caller keeps whichever
+    one falls inside the window it is expecting. Guessing wrong here is not a
+    small error: an offset of a few hours pushes the value clean outside that
+    window, and the feature silently stops working for everyone who is not on
+    UTC.
     """
     if not isinstance(value, str) or not value.strip():
-        return None
+        return []
 
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
         try:
@@ -140,9 +145,17 @@ def _parse_created(value: Any) -> Optional[int]:
         except ValueError:
             continue
 
-        return int(parsed.replace(tzinfo=timezone.utc).timestamp())
+        local = dt_util.DEFAULT_TIME_ZONE or timezone.utc
 
-    return None
+        readings = [
+            int(parsed.replace(tzinfo=local).timestamp()),
+            int(parsed.replace(tzinfo=timezone.utc).timestamp()),
+        ]
+
+        # A household already on UTC yields the same reading twice.
+        return sorted(set(readings))
+
+    return []
 
 
 def _is_done(value: Any) -> bool:
@@ -189,7 +202,7 @@ def read_observation(product: Dict[str, Any]) -> Dict[str, Any]:
     lists: List[int] = []
     quantity = 0.0
     out_of_stock = False
-    created: Optional[int] = None
+    created: Optional[List[int]] = None
 
     for key, value in attributes.items():
         match = _LIST_QTY_RE.match(key)
@@ -209,7 +222,7 @@ def read_observation(product: Dict[str, Any]) -> Dict[str, Any]:
         quantity += entry_quantity
 
         entry_created = _parse_created(attributes.get(f"list_{list_id}_created"))
-        if entry_created is not None and (created is None or entry_created < created):
+        if entry_created and (created is None or min(entry_created) < min(created)):
             created = entry_created
 
         if _is_out_of_stock(attributes.get(f"list_{list_id}_note")):
@@ -237,16 +250,24 @@ def resolve_added_at(
     Adding a product whose row still exists from a previous shop updates that
     row in place, keeping its original creation time, so anything older than
     the last observation is a row already seen and is ignored.
-    """
-    created = observation.get("created")
 
-    if created is None or last_observation is None:
+    Grocy's timestamps carry no timezone, so both plausible readings arrive
+    here and the window decides between them.
+    """
+    candidates = observation.get("created")
+
+    if not candidates or last_observation is None:
         return now
 
-    if last_observation < created <= now:
-        return created
+    inside = [
+        candidate for candidate in candidates if last_observation < candidate <= now
+    ]
 
-    return now
+    # More than one reading can land inside the window when it is wide, which
+    # happens after a long pause. The later one is the conservative choice: it
+    # claims the product was wanted more recently, so it can never invent an
+    # addition older than it really was.
+    return max(inside) if inside else now
 
 
 class PurchaseHistoryStore:
@@ -341,6 +362,8 @@ class PurchaseHistoryStore:
 
         if changed:
             self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+
+        async_dispatcher_send(self.hass, SUGGESTIONS_UPDATED_SIGNAL)
 
     def _advance(
         self,
