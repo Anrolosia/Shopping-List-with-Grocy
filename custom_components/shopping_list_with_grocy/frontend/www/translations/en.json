@@ -15,10 +15,20 @@
                     "select": "Select quantity",
                     "add": "Add to shopping list"
                 },
+                "dismiss": "Dismiss this suggestion",
+                "engine_state": {
+                    "ready": "{count} ready",
+                    "learning": "{count} learning",
+                    "cold": "{count} not enough data"
+                },
                 "stats": {
                     "score": "Score: {score}",
                     "confidence": "Confidence: {confidence}",
-                    "stock": "Stock: {current}/{min}"
+                    "stock": "Stock: {current}/{min}",
+                    "overdue": "Overdue by {days} day(s)",
+                    "due_today": "Due today",
+                    "due_in": "Due in {days} day(s)",
+                    "interval": "about every {days} days"
                 }
             }
         },

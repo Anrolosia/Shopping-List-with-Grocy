@@ -13,18 +13,23 @@ from custom_components.shopping_list_with_grocy.prediction_engine import (
     DAY,
     DORMANT_MULTIPLIER,
     MAX_INTERVALS,
+    MIN_CYCLE_GAPS,
+    MIN_ELAPSED_FRACTION,
     MIN_GROUP_INTERVALS,
     MIN_HOUSEHOLD_INTERVALS,
+    MIN_SESSION_SIZE,
     STATE_COLD,
     STATE_DORMANT,
     STATE_LEARNING,
     STATE_READY,
     analyze,
+    cycle_length,
     episodes_by_product,
     estimate_interval,
     household_stats,
     is_dwell_anomalous,
     product_intervals,
+    shopping_sessions,
     suggest,
 )
 
@@ -85,6 +90,73 @@ class TestIntervals:
 
     def test_simultaneous_additions_are_dropped(self):
         assert product_intervals([episode(1, 5), episode(1, 5)]) == []
+
+
+# ── Shopping trips ───────────────────────────────────────────────────────────
+
+
+def trip(day, size, product_start=1):
+    """Build one shopping trip: a burst of removals minutes apart."""
+    episodes = []
+
+    for index in range(size):
+        item = episode(product_start + index, day - 1)
+        item["r"] = MONDAY + int(day * DAY) + index * 30
+        episodes.append(item)
+
+    return episodes
+
+
+class TestShoppingSessions:
+    def test_a_burst_of_removals_is_one_trip(self):
+        sessions = shopping_sessions(trip(7, 14))
+
+        assert len(sessions) == 1
+        assert sessions[0]["size"] == 14
+
+    def test_trips_days_apart_are_separate(self):
+        sessions = shopping_sessions(trip(7, 5) + trip(14, 5, 100))
+
+        assert [session["size"] for session in sessions] == [5, 5]
+
+    def test_estimated_removals_are_ignored(self):
+        """Their timestamp is whenever Home Assistant came back, not a trip."""
+        stray = episode(500, 0, est=1)
+        stray["r"] = MONDAY + int(3.5 * DAY)
+
+        assert len(shopping_sessions(trip(7, 5) + [stray])) == 1
+
+    def test_no_episodes_means_no_trips(self):
+        assert shopping_sessions([]) == []
+
+
+class TestCycleLength:
+    def test_three_trips_give_a_cycle(self):
+        journal = trip(7, 5) + trip(14, 5, 100) + trip(21, 5, 200)
+        stats = cycle_length(journal)
+
+        assert stats["trip_count"] == 3
+        assert stats["cycle_days"] == pytest.approx(7, abs=0.01)
+        assert stats["cycle_sample_size"] == MIN_CYCLE_GAPS
+
+    def test_two_trips_are_not_enough(self):
+        journal = trip(7, 5) + trip(14, 5, 100)
+
+        assert cycle_length(journal)["cycle_days"] is None
+
+    def test_a_stray_tick_is_not_a_trip(self):
+        """Counting it would drag the cycle estimate down."""
+        journal = trip(7, 5) + trip(10, MIN_SESSION_SIZE - 1, 50) + trip(14, 5, 100)
+        journal += trip(21, 5, 200)
+        stats = cycle_length(journal)
+
+        assert stats["trip_count"] == 3
+        assert stats["cycle_days"] == pytest.approx(7, abs=0.01)
+
+    def test_an_irregular_rhythm_shows_spread(self):
+        journal = trip(7, 5) + trip(14, 5, 100) + trip(35, 5, 200) + trip(40, 5, 300)
+
+        assert cycle_length(journal)["cycle_mad_days"] > 1
 
 
 # ── Household statistics ─────────────────────────────────────────────────────
@@ -382,6 +454,47 @@ class TestSuggest:
 
         assert suggest(analyze(journal, now)) == []
 
+    def test_the_horizon_reaches_the_next_trip(self):
+        """A product bought every seven days, in a household that shops every
+        seven, belongs on every list even before it is overdue."""
+        journal = every(1, 7, 5)
+        now = MONDAY + int(28 * DAY) + int(5 * DAY)
+
+        assert suggest(analyze(journal, now), horizon_days=7)[0]["product_id"] == 1
+        assert suggest(analyze(journal, now), horizon_days=0) == []
+
+    def test_a_just_bought_product_is_held_back(self):
+        """Whatever the projection says, suggesting it hours later is noise."""
+        journal = every(1, 7, 5)
+        now = MONDAY + int(28 * DAY) + int(0.5 * DAY)
+        results = suggest(analyze(journal, now), horizon_days=30)
+
+        assert results == []
+
+    def test_the_hold_back_ends_partway_through_the_interval(self):
+        journal = every(1, 10, 5)
+        now = MONDAY + int(40 * DAY) + int(MIN_ELAPSED_FRACTION * 10 * DAY) + 3600
+        results = suggest(analyze(journal, now), horizon_days=30)
+
+        assert [item["product_id"] for item in results] == [1]
+
+    def test_products_already_on_a_list_are_excluded(self):
+        """Analysis only sees closed episodes, so without this the engine
+        suggests what the user just added."""
+        journal = every(1, 7, 5) + every(2, 7, 5)
+        now = MONDAY + int(28 * DAY) + int(9 * DAY)
+
+        results = suggest(analyze(journal, now), exclude={1})
+        assert [item["product_id"] for item in results] == [2]
+
+    def test_the_horizon_defaults_to_the_household_cycle(self):
+        journal = trip(7, 5) + trip(14, 5) + trip(21, 5) + trip(28, 5)
+        now = MONDAY + int(32 * DAY)
+        analysis = analyze(journal, now)
+
+        assert analysis["household"]["cycle_days"] == pytest.approx(7, abs=0.01)
+        assert suggest(analysis)[0]["horizon_days"] == pytest.approx(7, abs=0.01)
+
     def test_learning_products_are_not_suggested(self):
         """Two purchases is a data point, not a habit."""
         journal = every(1, 7, 2)
@@ -413,7 +526,7 @@ class TestSuggest:
     def test_the_score_is_capped(self):
         journal = every(1, 7, 5)
         now = MONDAY + int(28 * DAY) + int(int(DORMANT_MULTIPLIER) * 7 - 1) * 86400
-        results = suggest(analyze(journal, now))
+        results = suggest(analyze(journal, now), horizon_days=7)
 
         assert all(0 < item["score"] <= 1 for item in results)
 

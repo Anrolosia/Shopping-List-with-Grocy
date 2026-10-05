@@ -12,6 +12,7 @@ class GrocyShoppingSuggestions extends LitElement {
             quantities: { type: Object },
             _loading: { type: Boolean },
             _shoppingListItems: { type: Object },
+            _hidden: { type: Object },
             narrow: { type: Boolean, reflect: true }
         };
     }
@@ -21,6 +22,7 @@ class GrocyShoppingSuggestions extends LitElement {
         this.quantities = {};
         this._loading = false;
         this._shoppingListItems = {};
+        this._hidden = new Set();
         this.narrow = false;
         
         this._resizeHandler = this._updateNarrowState.bind(this);
@@ -262,6 +264,21 @@ class GrocyShoppingSuggestions extends LitElement {
                 display: flex;
                 justify-content: flex-end;
             }
+            .engine-state {
+                display: flex;
+                gap: 16px;
+                padding: 12px 16px;
+                margin-bottom: 16px;
+                background-color: var(--card-background-color);
+                border-radius: 12px;
+                box-shadow: var(--ha-card-box-shadow);
+                color: var(--secondary-text-color);
+                font-size: 0.85em;
+                flex-wrap: wrap;
+            }
+            .dismiss-button {
+                color: var(--secondary-text-color);
+            }
         `;
     }
     
@@ -274,6 +291,7 @@ class GrocyShoppingSuggestions extends LitElement {
                 disable_notification: true
             });
             this.quantities = {};
+            this._hidden = new Set();
         } catch (err) {
             console.error('Error refreshing suggestions:', err);
                 console.warn('Failed to refresh suggestions:', err.message);
@@ -290,6 +308,11 @@ class GrocyShoppingSuggestions extends LitElement {
             ...this.quantities,
             [productId]: newQty
         };
+        this.requestUpdate();
+    }
+
+    _hide(productId) {
+        this._hidden = new Set(this._hidden).add(productId);
         this.requestUpdate();
     }
 
@@ -346,6 +369,7 @@ class GrocyShoppingSuggestions extends LitElement {
                     </div>
                 </div>
                 <div class="content">
+                    ${this._renderEngineState()}
                     <ha-card>
                         <div class="card-content">
                             ${suggestions.length === 0
@@ -374,6 +398,33 @@ class GrocyShoppingSuggestions extends LitElement {
         `;
     }
 
+    _renderEngineState() {
+        const attrs = this.hass.states['sensor.grocy_shopping_suggestions']?.attributes;
+        const state = attrs?.engine_state;
+        if (!state) return html``;
+
+        return html`
+            <div class="engine-state">
+                <span>${this.t('shopping_list_with_grocy.ui.panel.engine_state.ready', { count: state.ready || 0 })}</span>
+                <span>${this.t('shopping_list_with_grocy.ui.panel.engine_state.learning', { count: state.learning || 0 })}</span>
+                <span>${this.t('shopping_list_with_grocy.ui.panel.engine_state.cold', { count: state.cold || 0 })}</span>
+            </div>
+        `;
+    }
+
+    _reasonText(suggestion) {
+        const due = Math.round(suggestion.due_in_days);
+        const interval = Math.round(suggestion.interval_days);
+
+        const dueText = due < 0
+            ? this.t('shopping_list_with_grocy.ui.panel.stats.overdue', { days: Math.abs(due) })
+            : due === 0
+                ? this.t('shopping_list_with_grocy.ui.panel.stats.due_today')
+                : this.t('shopping_list_with_grocy.ui.panel.stats.due_in', { days: due });
+
+        return `${dueText} · ${this.t('shopping_list_with_grocy.ui.panel.stats.interval', { days: interval })}`;
+    }
+
     _renderSuggestion(suggestion) {
         const quantity = this.quantities[suggestion.id] || 0;
         return html`
@@ -381,10 +432,16 @@ class GrocyShoppingSuggestions extends LitElement {
                 <div class="product-info">
                     <div class="product-name">${suggestion.name}</div>
                     <div class="product-stats">
-                        ${this.t('shopping_list_with_grocy.ui.panel.stats.score', { score: suggestion.score.toFixed(2) })}
+                        ${this._reasonText(suggestion)}
                     </div>
                 </div>
                 <div class="actions">
+                    <ha-icon-button
+                        class="dismiss-button"
+                        @click=${() => this._hide(suggestion.id)}
+                        .path=${"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"}
+                        label=${this.t('shopping_list_with_grocy.ui.panel.dismiss')}>
+                    </ha-icon-button>
                     <div class="quantity-controls">
                         <ha-icon-button
                             @click=${() => this._updateQuantity(suggestion.id, -1)}
@@ -420,7 +477,7 @@ class GrocyShoppingSuggestions extends LitElement {
     _getVisibleSuggestions(suggestions) {
         return suggestions.filter(suggestion => {
             const currentQuantity = this._shoppingListItems[suggestion.id] || 0;
-            return currentQuantity === 0;
+            return currentQuantity === 0 && !this._hidden.has(suggestion.id);
         });
     }
 
@@ -460,6 +517,7 @@ class GrocyShoppingSuggestions extends LitElement {
 
             // Clear quantities for added products and update shopping list state
             const newQuantities = { ...this.quantities };
+            this._hidden = new Set([...this._hidden, ...addedProductIds]);
             addedProductIds.forEach(id => {
                 delete newQuantities[id];
                 // Update the shopping list state to reflect the added product
@@ -506,7 +564,8 @@ class GrocyShoppingSuggestions extends LitElement {
                 ...this.quantities,
                 [suggestion.id]: 0
             };
-            
+            this._hidden = new Set(this._hidden).add(suggestion.id);
+
             // Update the shopping list state to reflect the added product
             this._shoppingListItems[suggestion.id] = (this._shoppingListItems[suggestion.id] || 0) + quantity;
             
