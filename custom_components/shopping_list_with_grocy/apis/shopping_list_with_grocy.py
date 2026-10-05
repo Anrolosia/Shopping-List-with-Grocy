@@ -1070,27 +1070,75 @@ class ShoppingListWithGrocyApi:
             "search_term": search_name,
         }
 
+    async def get_product_preset(self, setting_key: str) -> int | None:
+        """Read one of Grocy's "presets for new products" user settings.
+
+        Grocy exposes these at ``/api/user/settings/<key>``. An unset preset is
+        returned as ``-1``, and older Grocy versions may not expose the key at
+        all, so anything unusable becomes ``None`` and the caller falls back.
+        """
+        try:
+            response = await self.request(
+                "get",
+                f"api/user/settings/{setting_key}",
+                "application/json",
+                log_level=logging.DEBUG,
+            )
+            data = await response.json()
+        except Exception:  # noqa: BLE001 - an absent preset is not an error
+            return None
+
+        value = (data or {}).get("value")
+        if value in (None, "", -1, "-1"):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     async def create_product_in_grocy(self, product_name: str) -> dict:
         """Create a new product in Grocy with default parameters."""
         if not product_name:
             raise ValueError("Product name is required")
 
+        # The name is stored exactly as entered. Grocy's `products.name` is
+        # UNIQUE with BINARY collation, so changing the case here can create a
+        # second product that differs from an existing one only by its first
+        # letter. Product lookup is already case- and accent-insensitive
+        # (`normalize_text_for_search`), so preserving the input costs nothing:
+        # a later "corn" still finds an existing "Corn".
         formatted_name = product_name.strip()
-        if formatted_name:
-            formatted_name = formatted_name[0].upper() + formatted_name[1:]
 
         LOGGER.debug("Creating new product in Grocy: '%s'", formatted_name)
 
-        default_location_id = None
-        default_qu_id = None
+        # Grocy has its own "presets for new products" settings. Prefer them, so
+        # a product created from Home Assistant lands where a product created in
+        # Grocy's own UI would. Falling back to the first location / unit keeps
+        # the previous behaviour when no preset is configured.
+        default_location_id = await self.get_product_preset(
+            "product_presets_location_id"
+        )
+        if default_location_id:
+            LOGGER.debug(
+                "Using Grocy preset location ID: %s", default_location_id
+            )
+
+        default_qu_id = await self.get_product_preset("product_presets_qu_id")
+        if default_qu_id:
+            LOGGER.debug("Using Grocy preset quantity unit ID: %s", default_qu_id)
 
         if self.final_data:
-            if "locations" in self.final_data and self.final_data["locations"]:
+            if (
+                not default_location_id
+                and "locations" in self.final_data
+                and self.final_data["locations"]
+            ):
                 default_location_id = self.final_data["locations"][0].get("id")
                 LOGGER.debug("Using default location ID: %s", default_location_id)
 
             if (
-                "quantity_units" in self.final_data
+                not default_qu_id
+                and "quantity_units" in self.final_data
                 and self.final_data["quantity_units"]
             ):
                 default_qu_id = self.final_data["quantity_units"][0].get("id")
