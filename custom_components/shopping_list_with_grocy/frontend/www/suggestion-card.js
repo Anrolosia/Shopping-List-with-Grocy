@@ -502,9 +502,6 @@ class GrocyShoppingSuggestions extends LitElement {
             this._loading = true;
             this.requestUpdate();
 
-            // Keep track of added product IDs
-            const addedProductIds = [];
-            
             for (const suggestion of productsToAdd) {
                 const quantity = this.quantities[suggestion.id] || 0;
                 await this.hass.callService('shopping_list_with_grocy', 'add_product', {
@@ -512,20 +509,14 @@ class GrocyShoppingSuggestions extends LitElement {
                     quantity: quantity,
                     disable_notification: true
                 });
-                addedProductIds.push(suggestion.id);
+
+                // Hidden right away so a later failure cannot leave it selectable
+                const newQuantities = { ...this.quantities };
+                delete newQuantities[suggestion.id];
+                this.quantities = newQuantities;
+                this._hidden = new Set(this._hidden).add(suggestion.id);
             }
 
-            // Clear quantities for added products and update shopping list state
-            const newQuantities = { ...this.quantities };
-            this._hidden = new Set([...this._hidden, ...addedProductIds]);
-            addedProductIds.forEach(id => {
-                delete newQuantities[id];
-                // Update the shopping list state to reflect the added product
-                this._shoppingListItems[id] = (this._shoppingListItems[id] || 0) + (this.quantities[id] || 0);
-            });
-            this.quantities = newQuantities;
-            
-            // Force an update of the shopping list state
             this._updateShoppingListState();
             
             // Schedule a delayed refresh to ensure entities are updated
