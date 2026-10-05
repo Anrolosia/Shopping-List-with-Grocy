@@ -201,10 +201,7 @@ async def async_analyze_purchase_history_service(call):
     coverage = analysis["coverage"]
     household = analysis["household"]
 
-    # Products sitting on a list are already handled. Analysis only sees closed
-    # episodes, so without this the engine suggests what was just added.
-    on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
-    suggestions = suggest(analysis, exclude=on_a_list)
+    suggestions = suggest(analysis, exclude=_unavailable_product_ids(hass, analysis))
 
     LOGGER.info(
         "Prediction coverage: %d product(s) over %d episode(s), %d repeated, "
@@ -304,6 +301,30 @@ def _product_names(api):
             continue
 
     return names
+
+
+def _unavailable_product_ids(hass, analysis) -> set:
+    """Return the products that cannot be suggested right now.
+
+    Adding goes through the product sensor, so a product without one (deleted
+    from Grocy, or sensors disabled) cannot be added. A product with outstanding
+    quantity on a list is already handled. The sensor reflects both right away,
+    while the journal only catches up on the next Grocy fetch.
+    """
+    excluded = set()
+
+    for product_id in analysis["products"]:
+        state = hass.states.get(
+            f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
+        )
+
+        if (
+            state is None
+            or read_observation({"attributes": dict(state.attributes)})["quantity"] > 0
+        ):
+            excluded.add(product_id)
+
+    return excluded
 
 
 def engine_summary(hass) -> dict:
@@ -408,26 +429,7 @@ async def async_suggest_grocery_list_service(call):
     # episodes, so without this the engine suggests what was just added.
     names = _product_names(api)
 
-    # Adding goes through the product sensor, so a product without one (deleted
-    # from Grocy, or sensors disabled) must not take one of the limited slots.
-    # The sensor shows an add right away, while the journal only catches up on
-    # the next Grocy fetch. Ticked-off rows do not count: that product was bought.
-    on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
-    excluded = set(on_a_list)
-
-    for product_id in analysis["products"]:
-        state = hass.states.get(
-            f"sensor.{DOMAIN}_product_v{ENTITY_VERSION}_{product_id}"
-        )
-
-        if state is None:
-            excluded.add(product_id)
-            continue
-
-        if read_observation({"attributes": dict(state.attributes)})["quantity"] > 0:
-            excluded.add(product_id)
-
-    candidates = suggest(analysis, exclude=excluded)
+    candidates = suggest(analysis, exclude=_unavailable_product_ids(hass, analysis))
 
     products = [
         {
