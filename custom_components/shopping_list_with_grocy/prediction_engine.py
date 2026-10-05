@@ -222,6 +222,9 @@ def product_intervals(
         if is_dwell_anomalous(previous, dwell_median_days):
             continue
 
+        if previous.get("oos") and previous.get("est"):
+            continue
+
         start = _interval_start(previous)
         days = (current["a"] - start) / DAY
 

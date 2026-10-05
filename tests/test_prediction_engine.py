@@ -377,6 +377,18 @@ class TestAnalyze:
 
         assert stats["days_since_last"] == pytest.approx(5, abs=0.01)
 
+    def test_an_estimated_restock_does_not_start_an_interval(self):
+        """Its removal time is when Home Assistant noticed, not when it restocked."""
+        journal = [
+            episode(1, 0),
+            episode(1, 7, dwell_hours=6 * 24, oos=1, est=1),
+            episode(1, 14),
+        ]
+
+        intervals = product_intervals(journal)
+
+        assert [round(item["days"]) for item in intervals] == [7]
+
     def test_an_out_of_stock_wait_is_kept_as_an_interval(self):
         """Its interval is measured from the removal, not the addition."""
         journal = [
