@@ -195,29 +195,29 @@ def episodes_by_product(episodes: List[Dict[str, Any]]) -> Dict[int, List[Dict]]
     return dict(grouped)
 
 
-def product_intervals(product_episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Return the intervals between consecutive purchases, in days.
+def _interval_start(episode: Dict[str, Any]) -> float:
+    """Return when the wait for the next purchase of this episode began.
 
-    Normally the interval runs from one addition to the next. When the previous
-    episode was flagged out of stock it runs from its removal instead: the
-    product sat on the list waiting for the shop to restock it, and that wait
-    says nothing about how fast it gets consumed.
+    An out of stock episode waited on the shop, so the wait starts once it was
+    removed, the moment it was restocked.
     """
+    if episode.get("oos") and episode.get("r") is not None:
+        return episode["r"]
+    return episode["a"]
+
+
+def product_intervals(product_episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return the intervals between consecutive purchases, in days."""
     intervals: List[Dict[str, Any]] = []
 
     for previous, current in zip(product_episodes, product_episodes[1:]):
-        if previous.get("oos"):
-            start = previous.get("r", previous["a"])
-            basis = "removal"
-        else:
-            start = previous["a"]
-            basis = "addition"
-
+        start = _interval_start(previous)
         days = (current["a"] - start) / DAY
 
         if days <= 0:
             continue
 
+        basis = "addition" if start == previous["a"] else "removal"
         intervals.append({"days": days, "at": current["a"], "basis": basis})
 
     return intervals
@@ -297,7 +297,7 @@ def is_dwell_anomalous(
     Forgetting to tick something off inflates the interval that follows it, so
     those episodes are excluded from the interval estimate.
     """
-    if dwell_median_days is None or episode.get("r") is None:
+    if dwell_median_days is None or episode.get("r") is None or episode.get("oos"):
         return False
 
     dwell = (episode["r"] - episode["a"]) / DAY
@@ -396,7 +396,7 @@ def analyze(
     for product_id, product_episodes in by_product.items():
         intervals = usable[product_id]
         last = product_episodes[-1]
-        days_since = (now - last["a"]) / DAY
+        days_since = (now - _interval_start(last)) / DAY
 
         estimate = estimate_interval(
             intervals,

@@ -11,7 +11,13 @@ from homeassistant.helpers.entity_registry import async_get
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_ENABLE_PRODUCT_SENSORS, DOMAIN, ENTITY_VERSION
+from .const import (
+    CONF_ENABLE_PRODUCT_SENSORS,
+    DOMAIN,
+    ENTITY_VERSION,
+    SUGGESTIONS_UPDATED_SIGNAL,
+)
+from .services import engine_summary
 
 LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=60)
@@ -96,6 +102,7 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
         self.hass = hass
         self._attr_name = "Grocy Shopping Suggestions"
         self._attr_unique_id = "grocy_shopping_suggestions"
+        self._attr_should_poll = False
         self._state = None
         self._attributes = {}
         self._reset_timer_cancel = None
@@ -107,6 +114,11 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SUGGESTIONS_UPDATED_SIGNAL, self.async_write_ha_state
+            )
+        )
         self._reset_timer_cancel = async_track_time_interval(
             self.hass, self._check_auto_reset, timedelta(minutes=15)
         )
@@ -159,14 +171,12 @@ class GrocyShoppingSuggestionsSensor(SensorEntity):
     @property
     def extra_state_attributes(self):
         """Return entity specific state attributes."""
-        if DOMAIN in self.hass.data and "suggestions" in self.hass.data[DOMAIN]:
-            return {
-                "suggestions": self.hass.data[DOMAIN]["suggestions"].get(
-                    "products", []
-                ),
-                "last_update": self.hass.data[DOMAIN]["suggestions"].get("last_update"),
-            }
-        return {"suggestions": [], "last_update": None}
+        suggestions = self.hass.data.get(DOMAIN, {}).get("suggestions", {})
+        return {
+            "suggestions": suggestions.get("products", []),
+            "last_update": suggestions.get("last_update"),
+            **engine_summary(self.hass),
+        }
 
 
 class GrocyVoiceResponseHelperSensor(SensorEntity):

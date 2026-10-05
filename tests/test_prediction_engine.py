@@ -292,6 +292,12 @@ class TestDwellAnomaly:
 
         assert not is_dwell_anomalous(open_episode, 15 / 24)
 
+    def test_an_out_of_stock_wait_is_not_a_forgotten_tick(self):
+        """Waiting for the shop to restock is long by design."""
+        waiting = episode(1, 0, dwell_hours=200, oos=1)
+
+        assert not is_dwell_anomalous(waiting, 15 / 24)
+
 
 # ── Interval estimation ──────────────────────────────────────────────────────
 
@@ -354,6 +360,30 @@ class TestEstimateInterval:
 
 
 class TestAnalyze:
+    def test_elapsed_time_after_restock_starts_at_removal(self):
+        """A product restocked late still has time left, measured from the
+        removal that ended its wait on the shop."""
+        restocked = episode(1, 10, dwell_hours=5 * 24, oos=1)
+        journal = [episode(1, 0), restocked]
+        now = MONDAY + int(20 * DAY)
+
+        stats = analyze(journal, now)["products"][1]
+
+        assert stats["days_since_last"] == pytest.approx(5, abs=0.01)
+
+    def test_an_out_of_stock_wait_is_kept_as_an_interval(self):
+        """Its interval is measured from the removal, not the addition."""
+        journal = [
+            episode(1, 0),
+            episode(1, 4, dwell_hours=10 * 24, oos=1),
+            episode(1, 20),
+        ]
+        intervals = product_intervals(journal)
+
+        assert len(intervals) == 2
+        assert intervals[1]["basis"] == "removal"
+        assert intervals[1]["days"] == pytest.approx(20 - 14, abs=0.01)
+
     def test_a_single_trip_produces_no_intervals(self):
         """The real starting point: many episodes, no repeats, nothing to
         predict from."""

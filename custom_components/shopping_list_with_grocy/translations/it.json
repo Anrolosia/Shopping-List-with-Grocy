@@ -23,14 +23,14 @@
     "step": {
       "init": {
         "title": "Shopping List with Grocy - Configurazione",
-        "description": "Configura le impostazioni di connessione a Grocy.\n\nINFO: I suggerimenti di acquisto funzionano ottimamente con le impostazioni predefinite. Accedi alle impostazioni avanzate solo se hai bisogno di ottimizzare l'algoritmo.",
+        "description": "Configura le impostazioni di connessione a Grocy.",
         "data": {
           "api_url": "Grocy - URL",
           "verify_ssl": "Verifica certificato SSL",
           "api_key": "Grocy - Chiave API",
           "disable_timeout": "Disabilita timeout nelle chiamate di rete (ATTENZIONE: Usa a tuo rischio, potrebbe causare instabilità)",
           "image_download_size": "Dimensione immagini prodotto scaricate? (Seleziona 0 per disabilitare le immagini)",
-          "show_advanced": "Mostra Impostazioni Algoritmo Avanzate (ATTENZIONE: Può compromettere la funzionalità se modificate incorrettamente)",
+          "show_advanced": "Mostra impostazioni avanzate (criteri di selezione)",
           "enable_bidirectional_sync": "Usa sincronizzazione bidirezionale",
           "disable_notifications": "Disabilita notifiche (per l'assistente vocale)",
           "enable_product_sensors": "Abilita sensori individuali dei prodotti"
@@ -38,12 +38,8 @@
       },
       "advanced": {
         "title": "ATTENZIONE: Impostazioni Algoritmo Avanzate",
-        "description": "ATTENZIONE: Procedi con cautela\n\nQueste impostazioni controllano come vengono calcolati i suggerimenti di acquisto. Modificare questi valori incorrettamente potrebbe compromettere la funzione di suggerimento.\n\nRaccomandiamo di lasciare questi valori predefiniti a meno che tu non comprenda completamente come funziona l'algoritmo.\n\nI pesi dell'algoritmo devono sommare esattamente a 1.0 altrimenti la funzione non funzionerà.",
+        "description": "Impostazioni avanzate di selezione.\n\nI criteri di selezione funzionano solo con la sincronizzazione bidirezionale attiva e aiutano a stabilire quale prodotto selezionare quando vengono trovate più corrispondenze.",
         "data": {
-          "score_threshold": "Punteggio minimo di confidenza per i suggerimenti (0.0-1.0)",
-          "consumption_weight": "Quanto considerare i modelli di utilizzo (0.0-1.0)",
-          "frequency_weight": "Quanto considerare la cronologia degli acquisti (0.0-1.0)",
-          "seasonal_weight": "Quanto considerare le tendenze stagionali (0.0-1.0)",
           "prefer_generic_products": "Preferire prodotti generici (senza prodotto padre)",
           "auto_select_first": "Seleziona automaticamente il primo risultato",
           "suggest_create_only_no_match": "Suggerisci la creazione di nuovi prodotti solo quando non ci sono corrispondenze (nascondi l'opzione crea quando i prodotti corrispondono)"
@@ -52,8 +48,6 @@
     },
     "error": {
       "invalid_api_url": "L'URL di Grocy non è valido, utilizza un URL valido (http:// o https:// con nome dominio o indirizzo IP)",
-      "weight_sum_error": "ERRORE: I pesi dell'algoritmo devono sommare esattamente a 1.0! La somma attuale non è valida. Regola i valori in modo che si sommino a 1.0.",
-      "invalid_analysis_settings": "Impostazioni algoritmo non valide fornite. Controlla i tuoi valori e riprova.",
       "invalid_selection_criteria": "Criteri di selezione non validi. Controlla i tuoi valori e riprova.",
       "bidirectional_sync_required": "I criteri di selezione richiedono la sincronizzazione bidirezionale abilitata. Abilita prima la sincronizzazione bidirezionale."
     },

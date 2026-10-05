@@ -8,6 +8,7 @@ from collections import Counter
 import voluptuous as vol
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.issue_registry import async_create_issue, async_delete_issue
 from homeassistant.util import dt as dt_util
 
@@ -23,6 +24,7 @@ from .const import (
     SERVICE_REFRESH,
     SERVICE_REMOVE,
     SERVICE_SEARCH,
+    SUGGESTIONS_UPDATED_SIGNAL,
 )
 from .frontend_translations import (
     async_load_frontend_translations,
@@ -304,6 +306,33 @@ def _product_names(api):
     return names
 
 
+def engine_summary(hass) -> dict:
+    """Return how far the prediction engine can go, read from the journal.
+
+    Derived from the persisted purchase history on every read, so it is right
+    straight after a restart without being stored anywhere else.
+    """
+    instances = hass.data.get(DOMAIN, {}).get("instances", {})
+    history = instances.get("history")
+
+    if not history:
+        return {"engine_state": {}, "coverage": {}}
+
+    analysis = analyze(
+        history.get_episodes(source=SOURCE_SHOPPING_LIST),
+        int(dt_util.utcnow().timestamp()),
+        _product_groups(instances.get("api")),
+        dt_util.DEFAULT_TIME_ZONE,
+    )
+
+    return {
+        "engine_state": dict(
+            Counter(stats["state"] for stats in analysis["products"].values())
+        ),
+        "coverage": analysis["coverage"],
+    }
+
+
 def _weekday_name(index):
     """Return an English weekday name, or unknown when there is no data."""
     if index is None:
@@ -377,10 +406,13 @@ async def async_suggest_grocery_list_service(call):
 
     # Products sitting on a list are already handled. Analysis only sees closed
     # episodes, so without this the engine suggests what was just added.
-    on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
-    candidates = suggest(analysis, exclude=on_a_list)
-
     names = _product_names(api)
+
+    # A product deleted from Grocy keeps its history but has no sensor to add
+    # from, so it must not take one of the limited suggestion slots.
+    on_a_list = {int(product_id) for product_id in history.get_open_episodes()}
+    deleted = set(analysis["products"]) - set(names) if names else set()
+    candidates = suggest(analysis, exclude=on_a_list | deleted)
 
     products = [
         {
@@ -393,11 +425,6 @@ async def async_suggest_grocery_list_service(call):
         }
         for item in candidates
     ]
-
-    # Sufficiency, not score: what the panel's engine state section shows.
-    engine_state = dict(
-        Counter(stats["state"] for stats in analysis["products"].values())
-    )
 
     if products and not call.data.get("disable_notification", False):
         notification_data = {
@@ -417,18 +444,7 @@ async def async_suggest_grocery_list_service(call):
     }
 
     hass.data[DOMAIN]["suggestions"] = suggestions_data
-
-    hass.states.async_set(
-        "sensor.grocy_shopping_suggestions",
-        len(products),
-        {
-            "suggestions": products,
-            "last_update": suggestions_data["last_update"],
-            "engine_state": engine_state,
-            "coverage": analysis["coverage"],
-            "friendly_name": "Grocy Shopping Suggestions",
-        },
-    )
+    async_dispatcher_send(hass, SUGGESTIONS_UPDATED_SIGNAL)
 
 
 @callback
