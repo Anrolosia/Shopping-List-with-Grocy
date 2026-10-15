@@ -3,6 +3,7 @@
 import logging
 import os
 
+from homeassistant.components.frontend import async_remove_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.panel_custom import async_register_panel
 from homeassistant.core import HomeAssistant
@@ -79,5 +80,5 @@ async def async_setup_frontend(hass: HomeAssistant) -> None:
 async def async_unload_frontend(hass: HomeAssistant) -> None:
     """Unload the frontend panel."""
     if PANEL_NAME in hass.data.get(DOMAIN, {}).get("panels", []):
-        hass.components.frontend.async_remove_panel(PANEL_NAME)
+        async_remove_panel(hass, PANEL_NAME)
         hass.data[DOMAIN]["panels"].remove(PANEL_NAME)
