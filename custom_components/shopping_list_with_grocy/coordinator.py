@@ -44,7 +44,6 @@ class ShoppingListWithGrocyCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.api = api
         self.last_successful_fetch = None
-        self.entities = []
 
         self.data = hass.data.setdefault(DOMAIN, {}).setdefault("products", {})
         self._parsed_data = {}

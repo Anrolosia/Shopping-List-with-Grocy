@@ -308,21 +308,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         GrocyShoppingListSensor(coordinator, "products", "Product Items", config_data),
     ]
 
-    for sensor in sensors:
-        coordinator.entities.append(sensor)
-
-    for sensor in sensors:
-        if not hasattr(sensor, "entity_id") or sensor.entity_id is None:
-            sensor.entity_id = f"sensor.{sensor._attr_unique_id}"
-
     async_add_entities(existing_entities + sensors)
-    for sensor in sensors:
-        current_entity_id = sensor.entity_id
-        expected_entity_id = f"sensor.{sensor._attr_unique_id}"
-
-        if current_entity_id != expected_entity_id:
-            sensor.entity_id = expected_entity_id
-            sensor.async_write_ha_state()
 
     pattern = re.compile(r"list_\d+_.*")
 
@@ -479,15 +465,14 @@ class DynamicProductSensor(CoordinatorEntity, SensorEntity):
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
 
-        if self.entity_id not in self.coordinator.entities:
-            self.coordinator.entities.append(self)
-
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
 
-        async_dispatcher_connect(
-            self.hass, "grocy_multiple_choices_force_update", self._force_update
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, "grocy_multiple_choices_force_update", self._force_update
+            )
         )
 
     @property
@@ -533,26 +518,3 @@ class GrocyShoppingListSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         return {}
-
-    async def async_added_to_hass(self):
-        await super().async_added_to_hass()
-
-        entity_registry = async_get(self.hass)
-        registry_entry = entity_registry.async_get(self.entity_id)
-
-        if (
-            registry_entry
-            and registry_entry.entity_id != f"sensor.{self._attr_unique_id}"
-        ):
-            entity_registry.async_update_entity(
-                registry_entry.entity_id, new_entity_id=f"sensor.{self._attr_unique_id}"
-            )
-
-    async def async_will_remove_from_hass(self):
-        await super().async_will_remove_from_hass()
-
-        entity_registry = async_get(self.hass)
-        registry_entry = entity_registry.async_get(self.entity_id)
-
-        if registry_entry:
-            entity_registry.async_remove(registry_entry.entity_id)
