@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 ⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
+## [0.29.1] - 2026-10-15
+
+### 🐛 Bug Fixes
+
+- Replaced the removed hass.components call when unloading the frontend panel
+- Stopped forcing the shopping list sensor entity_id and leaking dispatcher listeners
+
+⚠️ The project is still under active development. Until `1.0.0`, breaking changes can be included in MINOR versions.
 ## [0.29.0] - 2026-10-05
 
 ### ✨ Features
