@@ -1,0 +1,34 @@
+name: Dependency config syntax
+
+on:
+  push:
+    paths:
+      - "renovate.json"
+      - ".github/workflows/dependency-configs.yml"
+  pull_request:
+    paths:
+      - "renovate.json"
+      - ".github/workflows/dependency-configs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate the Renovate config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Install tooling
+        run: pip install "$(grep ^check-jsonschema requirements.txt)"
+
+      - name: Validate renovate.json
+        run: check-jsonschema --builtin-schema vendor.renovate --regex-variant nonunicode renovate.json

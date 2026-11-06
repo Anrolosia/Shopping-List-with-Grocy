@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "packageRules": [
+    {
+      "description": "Keep workflow action bumps together in a single PR.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "The Home Assistant validation actions track their upstream branch on purpose so new rules apply on the next run; do not pin them to a digest.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["home-assistant/actions", "hacs/action"],
+      "pinDigests": false
+    },
+    {
+      "description": "Keep the test and lint dependency bumps together in a single PR.",
+      "matchManagers": ["pip_requirements"],
+      "groupName": "python dependencies"
+    },
+    {
+      "description": "Python follows the version Home Assistant runs on. Revisit when HA moves to 3.15.",
+      "matchDepNames": ["python"],
+      "allowedVersions": "<3.15"
+    }
+  ]
+}
