@@ -10,7 +10,6 @@ from difflib import SequenceMatcher
 from urllib.parse import urlencode
 
 import aiohttp
-from async_timeout import timeout
 from homeassistant.components.todo import TodoItemStatus
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -366,7 +365,7 @@ class ShoppingListWithGrocyApi:
                 )
             else:
                 # Only apply a timeout when explicitly requested
-                async with timeout(req_timeout):
+                async with asyncio.timeout(req_timeout):
                     response = await self.web_session.request(
                         method,
                         full_url,
@@ -1586,7 +1585,7 @@ class ShoppingListWithGrocyApi:
                         return_exceptions=True,
                     )
                 else:
-                    async with timeout(t):
+                    async with asyncio.timeout(t):
                         results = await asyncio.gather(
                             *(self.fetch_list(path) for path in titles),
                             return_exceptions=True,
@@ -1611,7 +1610,7 @@ class ShoppingListWithGrocyApi:
                         self.final_data
                     )
                 else:
-                    async with timeout(t):
+                    async with asyncio.timeout(t):
                         self.final_data[
                             "homeassistant_products"
                         ] = await self.parse_products(self.final_data)
